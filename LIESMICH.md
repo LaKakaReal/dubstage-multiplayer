@@ -50,7 +50,7 @@ bleiben unveraendert. Clips ohne zugeordnete Sprache werden gemeldet.
 1. **`DubStage-Setup-<Version>.exe`** von der [Release-Seite](https://github.com/xmrius/dubstage/releases/latest) laden
 2. Ausführen — ohne Adminrechte, ein eigenes Python ist nicht nötig
 
-Das Setup bringt sein eigenes Python mit allen Paketen mit, lädt ffmpeg und bietet zwei optionale Teile an: Demucs für die Stimmen-Trennung (zieht PyTorch nach, bis ~2 GB — ohne läuft alles weiter, nur ohne Backing-Track) und die Spracherkennung für automatische Untertitel. Beides lässt sich später durch erneutes Ausführen des Setups nachinstallieren.
+Das Setup bringt sein eigenes Python mit allen Paketen mit, lädt ffmpeg und bietet zwei optionale Teile an: Demucs für die Stimmen-Trennung (zieht PyTorch nach, bis ~2 GB — ohne läuft alles weiter, nur ohne Backing-Track) und die Spracherkennung für automatische Untertitel. Außerdem lädt es `cloudflared` (ca. 55 MB, vorausgewählt), damit Freunde im Mehrspieler ohne Portfreigabe beitreten können. Alles lässt sich später durch erneutes Ausführen des Setups nachinstallieren.
 
 Danach **DubForge** zum Bauen und **DubStage** zum Einsprechen starten — aus dem Startmenü oder vom Desktop.
 
@@ -174,7 +174,7 @@ So erreichen dich deine Freunde, eins davon reicht:
 
 | Weg | Was zu tun ist |
 |---|---|
-| **Cloudflare Quick Tunnel** (am einfachsten) | Einmal `cloudflared` installieren (`winget install Cloudflare.cloudflared` oder `cloudflared.exe` nach `tools\` legen) und **Cloudflare Quick Tunnel starten** anhaken. Die `…trycloudflare.com`-Adresse schicken. Kein Router nötig. |
+| **Cloudflare Quick Tunnel** (am einfachsten) | Das Setup installiert `cloudflared` (sonst `winget install Cloudflare.cloudflared` oder `cloudflared.exe` nach `tools\` legen). Dann **Cloudflare Quick Tunnel starten** anhaken. Die `…trycloudflare.com`-Adresse schicken. Kein Router nötig. |
 | **VPN** (Tailscale, ZeroTier, Radmin VPN) | Alle im selben VPN; deine VPN-IP mit Port schicken, z. B. `100.64.1.2:47800`. |
 | **Portfreigabe** | TCP-Port 47800 (oder den gewählten) im Router auf deinen PC freigeben und deine öffentliche IP schicken, z. B. `203.0.113.5:47800`. |
 | **Gleiches Netz** | Die LAN-Adresse aus der Lobby schicken. |

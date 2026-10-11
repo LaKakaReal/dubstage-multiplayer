@@ -17,7 +17,7 @@ Dub scenes from video yourself. **DubForge** cuts a video into speakable clips, 
 1. Download **`DubStage-Setup-<version>.exe`** from the [releases page](https://github.com/xmrius/dubstage/releases/latest)
 2. Run it — no admin rights, no Python needed
 
-The setup brings its own Python with all packages, downloads ffmpeg, and lets you pick two optional parts: Demucs for vocal separation (pulls in PyTorch, up to ~2 GB — without it everything still works, just without a backing track) and speech recognition for automatic captions. Run the setup again at any time to add them.
+The setup brings its own Python with all packages, downloads ffmpeg, and lets you pick two optional parts: Demucs for vocal separation (pulls in PyTorch, up to ~2 GB — without it everything still works, just without a backing track) and speech recognition for automatic captions. It also downloads `cloudflared` (about 55 MB, ticked by default), which lets friends join multiplayer games without port forwarding. Run the setup again at any time to add any of them.
 
 Then start **DubForge** to build and **DubStage** to record — from the Start menu or the desktop.
 
@@ -175,7 +175,7 @@ Ways for friends to reach you, pick one:
 
 | Way | What to do |
 |---|---|
-| **Cloudflare quick tunnel** (easiest) | Install `cloudflared` once (`winget install Cloudflare.cloudflared`, or put `cloudflared.exe` into `tools\`) and tick **Start a Cloudflare quick tunnel**. Send the `…trycloudflare.com` address. No router setup. |
+| **Cloudflare quick tunnel** (easiest) | The setup installs `cloudflared` (otherwise `winget install Cloudflare.cloudflared`, or put `cloudflared.exe` into `tools\`). Tick **Start a Cloudflare quick tunnel**. Send the `…trycloudflare.com` address. No router setup. |
 | **VPN** (Tailscale, ZeroTier, Radmin VPN) | Everyone joins the same VPN; send your VPN IP with the port, e.g. `100.64.1.2:47800`. |
 | **Port forwarding** | Forward TCP port 47800 (or the one you chose) in your router to your PC and send your public IP, e.g. `203.0.113.5:47800`. |
 | **Same network** | Send the LAN address shown in the lobby. |

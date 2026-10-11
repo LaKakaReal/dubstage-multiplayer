@@ -21,6 +21,9 @@ versioning follows [Semantic Versioning](https://semver.org/).
   title from `_pack_info.ini`; MP3 clips, `_backing_track.mp3` and
   `dub_video.ogv` are used as they are. A clip listed at several timestamps
   becomes several lines.
+- **The setup installs `cloudflared`** for multiplayer tunnels: an optional
+  component of the installer (ticked in *Standard* and *Everything*) and an
+  optional step in `Setup.bat`. It lands in `tools\` next to ffmpeg.
 
 ### Fixed
 
