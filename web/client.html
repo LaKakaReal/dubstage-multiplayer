@@ -56,6 +56,12 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
 .chips span{flex:1;height:10px;border-radius:5px;min-width:2px}
 .caption{text-align:center;color:var(--gold);font-size:18px;font-weight:600;min-height:52px;margin:6px 0}
 .lineinfo{display:flex;justify-content:space-between;font-size:13px;color:var(--dim)}
+.strip{position:relative;height:78px;background:#11141f;border:1px solid var(--edge);border-radius:10px;margin-top:8px}
+.strip canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.strip span{position:absolute;font-size:11px;font-weight:600;pointer-events:none}
+.strip .lo{left:12px;top:4px;color:#7079ad} .strip .lt{right:12px;top:4px;color:var(--teal)}
+.strip .msg{left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;color:var(--dim);font-size:13px;font-weight:400}
+.strip .info{right:12px;bottom:4px;color:var(--dim);font-weight:400}
 .buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
 .nav{display:flex;gap:12px;margin-top:12px}
 .nav .right{margin-left:auto}
@@ -121,6 +127,11 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
   <div id="chips" class="chips"></div>
   <div id="caption" class="caption"></div>
   <div class="lineinfo"><span id="lineTitle"></span><span id="lineTime"></span></div>
+  <div class="strip">
+    <canvas id="strip"></canvas>
+    <span class="lo" data-t="legendOrig"></span><span id="lgTake" class="lt"></span>
+    <span id="stripMsg" class="msg"></span><span id="stripInfo" class="info"></span>
+  </div>
   <div class="buttons">
     <button id="bOrig">▶ <span data-t="original"></span></button>
     <button id="bRec" class="rec">● <span id="recLabel" data-t="record"></span></button>
@@ -228,6 +239,8 @@ const T = {
     again: "Join again", leaveQ: "Leave the game? Your takes stay with the host.",
     badCode: "Wrong room code.", noReach: "Cannot reach the host.",
     noMic: "No microphone available.", quiet: "very quiet – speak up",
+    legendOrig: "Original", legendTake: "Your take", legendTheir: "%1's take",
+    noTake: "nothing recorded yet", takeLen: "Take %1 s",
   },
   de: {
     joinIntro: "Tritt einem DubStage-Spiel im Browser bei. Du brauchst den Raumcode vom Host.",
@@ -261,6 +274,8 @@ const T = {
     again: "Neu beitreten", leaveQ: "Spiel verlassen? Deine Aufnahmen bleiben beim Host.",
     badCode: "Falscher Raumcode.", noReach: "Host nicht erreichbar.",
     noMic: "Kein Mikrofon verfügbar.", quiet: "sehr leise – lauter sprechen",
+    legendOrig: "Original", legendTake: "Deine Aufnahme", legendTheir: "Aufnahme von %1",
+    noTake: "noch nichts aufgenommen", takeLen: "Aufnahme %1 s",
   },
 };
 const LANG = (navigator.language || "en").toLowerCase().startsWith("de") ? "de" : "en";
@@ -290,7 +305,7 @@ const S = {
   unsent: new Map(), fetching: new Set(),
   backing: null, ctx: null, stream: null,
   phase: "idle", screen: "join", trouble: false, polling: false, ready: false, wantDone: false,
-  play: null, videoReady: false,
+  play: null, videoReady: false, live: null,
 };
 
 function show(screen) {
@@ -698,9 +713,84 @@ function renderStage() {
     chips.children[i].style.background = i === S.i ? "var(--gold)" : rec ? c : mix(c, "#242a42", 0.7);
   });
   $("hint").textContent = hintText();
+  $("lgTake").textContent = own ? t("legendTake") : t("legendTheir", p.name);
+  drawStrip(null);
   if (!S.videoReady) { overlay(t("videoPrep"), true); }
   else if (!busy) { overlay(null); const v = $("video"); if (Math.abs(v.currentTime - l.start) > 0.05) v.currentTime = l.start; }
 }
+
+// ---------------------------------------------------------- Vergleichsstreifen
+// Original als Silhouette, Aufnahme darueber - wie in der App.
+const STRIP_COLS = 320, ENV_S = 0.02;
+const peakCache = new WeakMap();
+
+function peaksOf(buf, cols) {
+  const c = peakCache.get(buf);
+  if (c && c.cols === cols) return c.peaks;
+  const d = buf.getChannelData(0), step = d.length / cols, peaks = [];
+  for (let i = 0; i < cols; i++) {
+    let lo = 0, hi = 0;
+    const a = Math.floor(i * step), b = Math.max(a + 1, Math.floor((i + 1) * step));
+    for (let k = a; k < b && k < d.length; k++) { const v = d[k]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    peaks.push([lo, hi]);
+  }
+  peakCache.set(buf, { cols, peaks });
+  return peaks;
+}
+
+function drawStrip(head) {
+  const l = line(), cv = $("strip");
+  if (!l || S.screen !== "stage") return;
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W || !H) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  }
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const left = 12, width = W - 24, mid = H / 2, amp = H / 2 - 16;
+  const span = Math.max(0.3, l.duration + TAIL), x = i => left + width * (i / STRIP_COLS);
+  g.strokeStyle = "#252b47"; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(10, mid + 0.5); g.lineTo(W - 10, mid + 0.5); g.stroke();
+  // Spitzen [lo, hi] als gefuellte Flaeche
+  const shape = (peaks, fill, alpha) => {
+    if (peaks.length < 2) return;
+    let m = 1e-6;
+    for (const [lo, hi] of peaks) m = Math.max(m, -lo, hi);
+    g.beginPath();
+    peaks.forEach(([, hi], i) => g.lineTo(x(i), mid - hi / m * amp));
+    for (let i = peaks.length - 1; i >= 0; i--) g.lineTo(x(i), mid - peaks[i][0] / m * amp);
+    g.closePath(); g.globalAlpha = alpha; g.fillStyle = fill; g.fill(); g.globalAlpha = 1;
+  };
+  const cols = buf => Math.max(4, Math.round(STRIP_COLS * Math.min(1, buf.duration / span)));
+  const orig = S.clips.get(l.file);
+  if (orig) shape(peaksOf(orig, cols(orig)), "#3c4470", 1);
+  const recording = S.phase === "record" && S.live, take = S.takes.get(l.file);
+  if (recording) {
+    // live: Spitzen je 20 ms, symmetrisch
+    const env = S.live.env, n = Math.max(2, Math.round(STRIP_COLS * Math.min(1, env.length * ENV_S / span)));
+    const peaks = [];
+    for (let i = 0; i < n; i++) { const v = env[Math.floor(span * i / STRIP_COLS / ENV_S)] || 0; peaks.push([-v, v]); }
+    if (env.length) shape(peaks, "#ff4f6d", 0.6);
+  } else if (take) {
+    shape(peaksOf(take, cols(take)), "#25d3a4", 0.55);
+  }
+  $("lgTake").style.color = recording ? "var(--red)" : "var(--teal)";
+  if (head != null) {
+    const hx = left + width * Math.max(0, Math.min(1, head / span));
+    g.strokeStyle = "#ffc861"; g.beginPath(); g.moveTo(hx + 0.5, 6); g.lineTo(hx + 0.5, H - 6); g.stroke();
+  }
+  $("stripMsg").textContent = recording || take ? "" : t("noTake");
+  const info = $("stripInfo");
+  if (recording) { info.textContent = t("recording"); info.style.color = "var(--red)"; }
+  else if (take) {
+    const q = peak(take) < 0.03;
+    info.textContent = t("takeLen", take.duration.toFixed(1)) + (q ? "   –   " + t("quiet") : "");
+    info.style.color = q ? "var(--gold)" : "";
+  } else info.textContent = "";
+}
+window.addEventListener("resize", () => { if (S.screen === "stage" && !S.play) drawStrip(null); });
 
 function hintText() {
   if (S.trouble) return t("trouble");
@@ -751,7 +841,7 @@ async function playOriginal() {
   setPhase("listen");
   await playScene($("video"), l.start, l.duration,
     [{ buf: S.clips.get(l.file), gain: 0.95 }, backingPart(l.start, l.duration, 0.6)].filter(Boolean),
-    null, () => setPhase("idle"));
+    drawStrip, () => setPhase("idle"));
 }
 
 async function playTake() {
@@ -759,7 +849,7 @@ async function playTake() {
   setPhase("listen");
   await playScene($("video"), l.start, buf.duration,
     [{ buf, gain: takeGain(buf) * 0.95 }, backingPart(l.start, buf.duration, 0.5)].filter(Boolean),
-    null, () => setPhase("idle"));
+    drawStrip, () => setPhase("idle"));
 }
 
 // ---------------------------------------------------------- Aufnahme
@@ -779,18 +869,30 @@ async function record() {
   mute.gain.value = 0;
   src.connect(proc); proc.connect(mute).connect(ctx.destination);
   const chunks = []; let t0 = Infinity;
+  const live = S.live = { env: [], rest: 0, step: Math.round(ctx.sampleRate * ENV_S) };
   proc.onaudioprocess = e => {
     const data = e.inputBuffer.getChannelData(0), at = e.playbackTime;
     const end = at + data.length / ctx.sampleRate;
     if (end <= t0 || at >= t0 + dur) return;
     const from = Math.max(0, Math.round((t0 - at) * ctx.sampleRate));
     const to = Math.min(data.length, Math.round((t0 + dur - at) * ctx.sampleRate));
-    if (to > from) chunks.push(data.slice(from, to));
+    if (to > from) {
+      const c = data.slice(from, to);
+      chunks.push(c);
+      // Spitzenwert je 20-ms-Fenster fuer den Streifen
+      for (let k = 0; k < c.length; k++) {
+        if (live.rest === 0) live.env.push(0);
+        const v = Math.abs(c[k]), e = live.env.length - 1;
+        if (v > live.env[e]) live.env[e] = v;
+        if (++live.rest >= live.step) live.rest = 0;
+      }
+    }
   };
   S.phase = "record"; $("recBadge").classList.remove("hidden"); renderStage();
-  t0 = await playScene($("video"), l.start, dur, [backingPart(l.start, dur, BACK_REC)].filter(Boolean), null, async () => {
+  t0 = await playScene($("video"), l.start, dur, [backingPart(l.start, dur, BACK_REC)].filter(Boolean), drawStrip, async () => {
     await sleep(250);                         // letzte Puffer noch einsammeln
     proc.onaudioprocess = null;
+    S.live = null;
     try { src.disconnect(); proc.disconnect(); } catch (e) {}
     $("recBadge").classList.add("hidden");
     const total = chunks.reduce((a, c) => a + c.length, 0);
