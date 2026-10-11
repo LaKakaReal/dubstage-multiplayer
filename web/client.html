@@ -69,6 +69,24 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
 .progress{height:8px;background:var(--panel-hi);border-radius:4px;overflow:hidden;margin:12px 0}
 .progress div{height:100%;background:var(--acc);width:0}
 .code{font:700 28px Consolas,monospace;color:var(--gold);letter-spacing:2px}
+/* Buehne, Warten, Finale: ganzer Bildschirm, das Video nimmt die freie Hoehe */
+body.wide main{max-width:none;height:100vh;height:100dvh;overflow-y:auto;padding:12px 24px 14px;
+  display:flex;flex-direction:column}
+body.wide main>section:not(.hidden){flex:1 0 auto;display:flex;flex-direction:column}
+body.wide header{margin-bottom:10px}
+.vbox{flex:1 1 0;min-height:200px;position:relative;overflow:hidden}
+.vbox .video{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);aspect-ratio:auto}
+.ctl{width:100%;max-width:max(760px,var(--vw,980px));margin:0 auto}
+.foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px}
+.foot .hint{flex:1;margin:0;text-align:left;min-width:200px}
+.foot select{width:auto;max-width:260px}
+.wgrid{flex:1 1 0;min-height:0;display:grid;gap:14px;grid-template-columns:minmax(0,1fr) 300px}
+.wgrid>div:first-child{display:flex;flex-direction:column;min-height:0}
+@media (max-width:760px){
+  body.wide main{padding:10px 12px}
+  .wgrid{grid-template-columns:1fr}
+  .buttons{gap:8px} .buttons button{padding:12px 8px}
+}
 </style>
 </head>
 <body>
@@ -114,16 +132,17 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
 
 <!-- ============================================================ Stage -->
 <section id="stage" class="hidden">
-  <header>
+  <header class="ctl">
     <button class="flat" data-act="leave">‹ <span data-t="leave"></span></button>
     <strong id="stagePack"></strong>
     <span id="lineOf" class="muted"></span>
   </header>
-  <div class="video">
+  <div class="vbox"><div class="video">
     <video id="video" muted playsinline preload="auto"></video>
     <div id="overlay" class="overlay hidden"></div>
     <div id="recBadge" class="badge hidden">● REC</div>
-  </div>
+  </div></div>
+  <div class="ctl">
   <div id="chips" class="chips"></div>
   <div id="caption" class="caption"></div>
   <div class="lineinfo"><span id="lineTitle"></span><span id="lineTime"></span></div>
@@ -142,10 +161,13 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
     <button id="bSkip" data-t="leaveEmpty"></button>
     <button id="bNext" class="primary right"><span id="nextLabel" data-t="next"></span></button>
   </div>
-  <p id="hint" class="hint"></p>
-  <div class="row" style="justify-content:center;margin-top:6px">
-    <span class="muted" style="font-size:13px" data-t="microphone"></span>
-    <select class="micsel" style="max-width:320px" disabled></select>
+  <div class="foot">
+    <p id="hint" class="hint"></p>
+    <span class="row" style="gap:8px;flex-wrap:nowrap">
+      <span class="muted" style="font-size:13px" data-t="microphone"></span>
+      <select class="micsel" disabled></select>
+    </span>
+  </div>
   </div>
 </section>
 
@@ -156,9 +178,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
     <div style="text-align:center"><h1 data-t="waitTitle"></h1><div class="muted" data-t="waitSub"></div></div>
     <span style="width:70px"></span>
   </header>
-  <div class="grid">
+  <div class="wgrid">
     <div>
-      <div class="video"><video id="wvideo" muted playsinline preload="auto"></video></div>
+      <div class="vbox"><div class="video"><video id="wvideo" muted playsinline preload="auto"></video></div></div>
       <div id="wcaption" class="caption"></div>
     </div>
     <div class="card"><h2 data-t="players"></h2><div id="wplayers" class="plist"></div></div>
@@ -178,19 +200,21 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
 
 <!-- ============================================================ Finale -->
 <section id="finale" class="hidden">
-  <header>
+  <header class="ctl">
     <button class="flat" data-act="leave">‹ <span data-t="leave"></span></button>
     <h1 data-t="yourScene"></h1>
     <span style="width:70px"></span>
   </header>
-  <div class="video">
+  <div class="vbox"><div class="video">
     <video id="fvideo" muted playsinline preload="auto"></video>
     <div id="foverlay" class="overlay small hidden"></div>
-  </div>
+  </div></div>
+  <div class="ctl">
   <div id="fcaption" class="caption"></div>
   <div class="progress"><div id="fprog"></div></div>
   <div class="row" style="justify-content:center"><button id="bPlay" class="go"><span id="playIcon">▶</span> <span id="playLabel" data-t="play"></span></button></div>
   <p id="fmsg" class="hint"></p>
+  </div>
 </section>
 
 <!-- ============================================================ Ended -->
@@ -305,14 +329,32 @@ const S = {
   unsent: new Map(), fetching: new Set(),
   backing: null, ctx: null, stream: null,
   phase: "idle", screen: "join", trouble: false, polling: false, ready: false, wantDone: false,
-  play: null, videoReady: false, live: null,
+  play: null, videoReady: false, live: null, aspect: 16 / 9,
 };
 
 function show(screen) {
   S.screen = screen;
   for (const id of ["join", "lobby", "stage", "waiting", "assembling", "finale", "ended"])
     $(id).classList.toggle("hidden", id !== screen);
+  document.body.classList.toggle("wide", ["stage", "waiting", "finale"].includes(screen));
+  fitVideos();
 }
+
+// Video so gross wie die freie Flaeche erlaubt, im echten Seitenverhaeltnis
+function fitVideos() {
+  for (const box of document.querySelectorAll(".vbox")) {
+    const v = box.firstElementChild, w0 = box.clientWidth, h0 = box.clientHeight;
+    if (!w0 || !h0) continue;
+    const w = Math.floor(Math.min(w0, h0 * S.aspect));
+    v.style.width = w + "px"; v.style.height = Math.floor(w / S.aspect) + "px";
+    box.closest("section").style.setProperty("--vw", w + "px");
+  }
+  if (S.screen === "stage" && !S.play) drawStrip(null);
+}
+if (window.ResizeObserver) {
+  const ro = new ResizeObserver(() => fitVideos());
+  document.querySelectorAll(".vbox").forEach(b => ro.observe(b));
+} else window.addEventListener("resize", fitVideos);
 
 // ======================================================================
 //  Netz / network
@@ -447,6 +489,10 @@ async function waitVideo() {
     await new Promise(r => setTimeout(r, 3000));
   }
   for (const v of [$("video"), $("wvideo"), $("fvideo")]) v.src = media("/media/video");
+  $("video").addEventListener("loadedmetadata", e => {
+    const v = e.target;
+    if (v.videoWidth && v.videoHeight) { S.aspect = v.videoWidth / v.videoHeight; fitVideos(); }
+  }, { once: true });
   S.videoReady = true; refresh();
 }
 
@@ -790,7 +836,6 @@ function drawStrip(head) {
     info.style.color = q ? "var(--gold)" : "";
   } else info.textContent = "";
 }
-window.addEventListener("resize", () => { if (S.screen === "stage" && !S.play) drawStrip(null); });
 
 function hintText() {
   if (S.trouble) return t("trouble");
