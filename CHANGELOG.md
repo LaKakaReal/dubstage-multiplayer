@@ -33,6 +33,13 @@ versioning follows [Semantic Versioning](https://semver.org/).
   hear everyone's takes and watch the finale, no install needed. The host
   serves a muted, light MP4 of the video (converted once, cached), the clips
   and the backing track, with range requests so the video can seek.
+- **Background volume slider in co-op.** Every player (app and browser) has
+  their own *Background* slider (0–150 %) on the stage, in the waiting room
+  and in the finale. It changes the backing track live while it plays, also
+  during recording, and only for that player. Saving the finale as a video
+  uses it.
+- **Browser guests get the comparison strip:** the original line as a
+  silhouette, their take on top, drawn live while recording.
 - **The setup installs `cloudflared`** for multiplayer tunnels: an optional
   component of the installer (ticked in *Standard* and *Everything*) and an
   optional step in `Setup.bat`. It lands in `tools\` next to ffmpeg.
@@ -41,9 +48,15 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 - **The microphone defaults to the Windows default** and only remembers one
   you pick yourself. Browser players can pick their microphone too.
+- **In co-op, Next and Back jump between your own lines** (app and browser).
+  Other lines stay reachable through the line strip.
+- **The browser page fills the window** on the stage, waiting and finale
+  screens; the video takes the free height.
 
 ### Fixed
 
+- **Long captions spilled out of their area.** They now shrink to fit and are
+  cut with "…" if they still don't fit (app and browser).
 - **Add folder found no packs** when the folder was a pack itself or held
   it inside an unzipped wrapper folder (`pennywise_vs_groot/Pennywise vs
   Groot`). Both are found now.

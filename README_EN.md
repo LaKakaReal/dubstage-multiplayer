@@ -135,6 +135,8 @@ Both curves share the same time axis, starting at zero of the clip. So you can s
 
 Each curve is normalised to its own loudness, so what you compare is rhythm, not level. If your take is too quiet, a note appears at the bottom right.
 
+Browser guests in a co-op game get the same strip.
+
 ## Microphone
 
 The menu has **Test**: records two seconds, shows the level, plays it back. If nothing arrives, pick a different device in the dropdown next to it.
@@ -187,7 +189,7 @@ needed for VPN, LAN and port forwarding. The tunnel works without it.
 
 **Join:** **Join game** → paste the address, enter the room code and your name.
 
-**Join in the browser (no install):** with the tunnel on, the lobby also shows a **browser link** that already contains the room code. Friends open it in Chrome, Edge or Firefox, enter a name and allow the microphone. They can record their lines, listen to everyone's takes and watch the finale (saving the video is app-only). Browsers only allow the microphone on https, so browser guests need the tunnel link; plain IP addresses work for the app only. The first time a pack is hosted, DubStage converts its video to a light MP4 for browsers in the background.
+**Join in the browser (no install):** with the tunnel on, the lobby also shows a **browser link** that already contains the room code. Friends open it in Chrome, Edge or Firefox, enter a name and allow the microphone. They can record their lines with the same comparison strip as the app, listen to everyone's takes and watch the finale (saving the video is app-only). The page fills the whole window. Browsers only allow the microphone on https, so browser guests need the tunnel link; plain IP addresses work for the app only. The first time a pack is hosted, DubStage converts its video to a light MP4 for browsers in the background.
 
 **Lobby:** the right side lists who voices what, grouped by character (the name
 in the clip file names). All roles start free. Every player, in the app or the
@@ -201,8 +203,17 @@ roles are fixed, and lines nobody took keep the original voice.
 **Recording:** you can only record your own lines. The strip above the subtitle
 shows every line in its owner's colour, bright once it is recorded. Other
 players' lines can be listened to as soon as their take arrives. The hint at the
-bottom says whose lines are still missing. The host can call everyone back to
-the **Lobby** to reassign lines; takes are kept.
+bottom says whose lines are still missing. **Next** and **Back** jump between
+your own lines; click any line in the strip to look at or listen to it. The
+host can call everyone back to the **Lobby** to reassign lines; takes are kept.
+
+**Background volume:** every player has a **Background** slider (0–150 %) on
+the stage, in the waiting room and in the finale. It turns the backing track
+(music and effects; without one, the original video sound) up or down while it
+plays, including during recording, and only for you: other players and the
+takes you send are not affected. Turning it down before recording keeps less
+background in your mic. Saving the finale as a video uses your setting. The
+app and the browser remember it.
 
 **Ready and the finale:** on the last line the button says **Ready ✓**. It
 takes you to a waiting room that shows how far everyone is (lines recorded out

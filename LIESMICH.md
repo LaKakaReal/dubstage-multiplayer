@@ -134,6 +134,8 @@ Beide Kurven teilen sich dieselbe Zeitachse, die bei Null des Clips beginnt. Dam
 
 Beide Kurven werden auf ihre eigene Lautstärke normiert, verglichen wird also Rhythmus und nicht Pegel. Ist deine Aufnahme zu leise, steht das als Hinweis rechts unten.
 
+Browser-Gäste im Koop-Spiel bekommen denselben Streifen.
+
 ## Mikrofon
 
 Im Menü gibt es **Testen**: zwei Sekunden aufnehmen, Pegel ablesen, Wiedergabe. Falls nichts ankommt, im Auswahlfeld daneben ein anderes Gerät nehmen.
@@ -186,7 +188,7 @@ braucht es für VPN, LAN und Portfreigabe. Der Tunnel geht auch ohne.
 
 **Beitreten:** **Beitreten** → Adresse einfügen, Raumcode und Namen eingeben.
 
-**Im Browser beitreten (ohne Installation):** Mit Tunnel zeigt die Lobby zusätzlich einen **Browser-Link**, in dem der Raumcode schon steckt. Freunde öffnen ihn in Chrome, Edge oder Firefox, geben einen Namen ein und erlauben das Mikrofon. Sie können ihre Zeilen aufnehmen, alle Aufnahmen anhören und das Finale ansehen (als Video speichern geht nur in der App). Browser erlauben das Mikrofon nur über https – Browser-Gäste brauchen also den Tunnel-Link, reine IP-Adressen gehen nur mit der App. Beim ersten Hosten eines Packs wandelt DubStage dessen Video im Hintergrund in ein leichtes MP4 für Browser um.
+**Im Browser beitreten (ohne Installation):** Mit Tunnel zeigt die Lobby zusätzlich einen **Browser-Link**, in dem der Raumcode schon steckt. Freunde öffnen ihn in Chrome, Edge oder Firefox, geben einen Namen ein und erlauben das Mikrofon. Sie können ihre Zeilen mit demselben Vergleichsstreifen wie in der App aufnehmen, alle Aufnahmen anhören und das Finale ansehen (als Video speichern geht nur in der App). Die Seite füllt das ganze Fenster. Browser erlauben das Mikrofon nur über https – Browser-Gäste brauchen also den Tunnel-Link, reine IP-Adressen gehen nur mit der App. Beim ersten Hosten eines Packs wandelt DubStage dessen Video im Hintergrund in ein leichtes MP4 für Browser um.
 
 **Lobby:** Rechts steht, wer was spricht, nach Figuren gruppiert (der Name in
 den Clip-Dateinamen). Alle Rollen sind anfangs frei. Jeder, ob in der App oder
@@ -201,8 +203,18 @@ Zeilen, die niemand genommen hat, behalten die Originalstimme.
 **Aufnehmen:** Aufnehmen kannst du nur deine eigenen Zeilen. Die Leiste über
 dem Untertitel zeigt jede Zeile in der Farbe ihres Sprechers, hell, sobald sie
 aufgenommen ist. Fremde Zeilen kannst du anhören, sobald die Aufnahme da ist.
-Unten steht, wessen Zeilen noch fehlen. Der Host kann alle zurück in die
-**Lobby** holen und neu verteilen; Aufnahmen bleiben erhalten.
+Unten steht, wessen Zeilen noch fehlen. **Weiter** und **Zurück** springen
+zwischen deinen eigenen Zeilen; jede andere Zeile erreichst du per Klick in der
+Leiste. Der Host kann alle zurück in die **Lobby** holen und neu verteilen;
+Aufnahmen bleiben erhalten.
+
+**Hintergrund-Lautstärke:** Jeder Spieler hat einen Regler **Hintergrund**
+(0–150 %) auf der Bühne, im Warteraum und im Finale. Er regelt den Backing
+Track (Musik und Effekte; ohne Backing Track den Originalton des Videos) lauter
+oder leiser, während er läuft, auch beim Aufnehmen – und nur für dich: Andere
+Spieler und deine gesendeten Aufnahmen bleiben unberührt. Leiser vor dem
+Aufnehmen heißt weniger Hintergrund im Mikrofon. Als Video speichern nimmt
+deine Einstellung. App und Browser merken sie sich.
 
 **Bereit und das Finale:** Auf der letzten Zeile heißt der Knopf **Bereit ✓**.
 Er führt in einen Warteraum, der zeigt, wie weit alle sind (aufgenommene von
