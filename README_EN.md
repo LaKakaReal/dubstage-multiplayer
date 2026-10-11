@@ -159,6 +159,47 @@ For a folder to count as a pack it needs a **`dub_video`** (mp4, ogv, mkv, webm,
 
 ---
 
+## Playing with friends (co-op)
+
+Dub one scene together: the host splits the lines between the players, everyone
+records their own lines on their own PC, and every take is sent to the others
+automatically. At the end everyone gets the whole scene with all voices.
+
+**Host:** pick a pack → **Host game** → enter your name. The lobby shows a
+**room code** and the address(es) to send your friends. Everyone who joins gets
+the pack from you automatically, so only share material you are allowed to share.
+
+Ways for friends to reach you, pick one:
+
+| Way | What to do |
+|---|---|
+| **Cloudflare quick tunnel** (easiest) | Install `cloudflared` once (`winget install Cloudflare.cloudflared`, or put `cloudflared.exe` into `tools\`) and tick **Start a Cloudflare quick tunnel**. Send the `…trycloudflare.com` address. No router setup. |
+| **VPN** (Tailscale, ZeroTier, Radmin VPN) | Everyone joins the same VPN; send your VPN IP with the port, e.g. `100.64.1.2:47800`. |
+| **Port forwarding** | Forward TCP port 47800 (or the one you chose) in your router to your PC and send your public IP, e.g. `203.0.113.5:47800`. |
+| **Same network** | Send the LAN address shown in the lobby. |
+
+When Windows asks whether Python may use the network, click **Allow**. This is
+needed for VPN, LAN and port forwarding. The tunnel works without it.
+
+**Join:** **Join game** → paste the address, enter the room code and your name.
+
+**Lobby:** the right side lists who voices what, grouped by character (the name
+in the clip file names). The host clicks a row to hand it to the next player, or
+uses **Auto split**. **By line** switches to single lines. **Start** unlocks once
+every player has the pack.
+
+**Recording:** you can only record your own lines. The strip above the subtitle
+shows every line in its owner's colour, bright once it is recorded. Other
+players' lines can be listened to as soon as their take arrives. The hint at the
+bottom says whose lines are still missing. The host can call everyone back to
+the **Lobby** to reassign lines; takes are kept. **Done** opens the finale,
+which every player renders on their own PC and can save as a video.
+
+If someone leaves, their lines go back to the host. If the host closes the
+game, it ends for everyone.
+
+---
+
 ## Updates
 
 Both tools ask GitHub on start whether a newer release exists — at most once

@@ -158,6 +158,47 @@ Damit ein Ordner als Pack zählt, braucht er ein **`dub_video`** (mp4, ogv, mkv,
 
 ---
 
+## Mit Freunden spielen (Koop)
+
+Eine Szene gemeinsam vertonen: Der Host verteilt die Zeilen, jeder nimmt seine
+Zeilen am eigenen Rechner auf, und jede Aufnahme geht automatisch an die
+anderen. Am Ende hat jeder die ganze Szene mit allen Stimmen.
+
+**Hosten:** Pack wählen → **Spiel hosten** → Namen eingeben. Die Lobby zeigt
+einen **Raumcode** und die Adresse(n) für deine Freunde. Wer beitritt, bekommt
+den Pack automatisch von dir, also nur Material teilen, das du teilen darfst.
+
+So erreichen dich deine Freunde, eins davon reicht:
+
+| Weg | Was zu tun ist |
+|---|---|
+| **Cloudflare Quick Tunnel** (am einfachsten) | Einmal `cloudflared` installieren (`winget install Cloudflare.cloudflared` oder `cloudflared.exe` nach `tools\` legen) und **Cloudflare Quick Tunnel starten** anhaken. Die `…trycloudflare.com`-Adresse schicken. Kein Router nötig. |
+| **VPN** (Tailscale, ZeroTier, Radmin VPN) | Alle im selben VPN; deine VPN-IP mit Port schicken, z. B. `100.64.1.2:47800`. |
+| **Portfreigabe** | TCP-Port 47800 (oder den gewählten) im Router auf deinen PC freigeben und deine öffentliche IP schicken, z. B. `203.0.113.5:47800`. |
+| **Gleiches Netz** | Die LAN-Adresse aus der Lobby schicken. |
+
+Fragt Windows, ob Python das Netzwerk nutzen darf: **Zulassen** klicken. Das
+braucht es für VPN, LAN und Portfreigabe. Der Tunnel geht auch ohne.
+
+**Beitreten:** **Beitreten** → Adresse einfügen, Raumcode und Namen eingeben.
+
+**Lobby:** Rechts steht, wer was spricht, nach Figuren gruppiert (der Name in
+den Clip-Dateinamen). Der Host klickt eine Zeile an, um sie dem nächsten
+Spieler zu geben, oder nimmt **Automatisch aufteilen**. **Nach Zeilen** zeigt
+einzelne Zeilen. **Los geht's** geht, sobald alle den Pack haben.
+
+**Aufnehmen:** Aufnehmen kannst du nur deine eigenen Zeilen. Die Leiste über
+dem Untertitel zeigt jede Zeile in der Farbe ihres Sprechers, hell, sobald sie
+aufgenommen ist. Fremde Zeilen kannst du anhören, sobald die Aufnahme da ist.
+Unten steht, wessen Zeilen noch fehlen. Der Host kann alle zurück in die
+**Lobby** holen und neu verteilen; Aufnahmen bleiben erhalten. **Fertig**
+öffnet das Finale, das jeder bei sich rendert und als Video speichern kann.
+
+Geht jemand, fallen seine Zeilen an den Host zurück. Beendet der Host, ist das
+Spiel für alle vorbei.
+
+---
+
 ## Updates
 
 Beide Werkzeuge fragen beim Start bei GitHub nach, ob es eine neuere Fassung

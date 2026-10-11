@@ -7,7 +7,15 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Multiplayer (co-op).** Host a game from DubStage and friends join with an
+  address and a room code. The host splits the lines by character (or line by
+  line, or with *Auto split*), everyone records their own lines, and takes are
+  exchanged automatically, so everyone's finale has all voices. The pack is
+  sent to guests automatically. Works over a Cloudflare quick tunnel
+  (`cloudflared`), a VPN, port forwarding or the local network. Plain HTTP
+  only, no new dependencies.
 
 ## [1.3.0] - 2026-09-28
 
