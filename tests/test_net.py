@@ -235,6 +235,47 @@ class ServerTests(unittest.TestCase):
         a.leave()
         self.assertIsNone(self.room.snapshot()["owner"][self.pack.lines[0].file])
 
+    def test_finale_waits_until_everyone_is_ready(self):
+        a, b = self.client("Anna"), self.client("Ben")
+        line = self.pack.lines[0].file
+        a.claim([line])
+        with self.assertRaises(net.NetError):     # erst nach dem Start
+            a.set_done()
+        self.room.start()
+        host = [p for p in self.room.snapshot()["players"] if p["host"]][0]
+        a.set_done()
+        self.assertEqual(a.state()["phase"], "recording")
+        # Zuruecknehmen und nachbessern geht, solange nicht alle bereit sind
+        a.set_done(False)
+        a.upload_take(line, np.zeros(500, np.float32))
+        a.set_done()
+        b.set_done()
+        self.assertEqual(a.state()["phase"], "recording")   # Host fehlt noch
+        self.room.players[host["id"]]["done"] = True
+        with self.room._cond:
+            self.room._check_all_done()
+        self.assertEqual(a.state()["phase"], "finale")
+        # Im Finale sind die Aufnahmen fest
+        with self.assertRaises(net.NetError) as cm:
+            a.upload_take(line, np.zeros(500, np.float32))
+        self.assertIn("finished", str(cm.exception))
+
+    def test_leaver_does_not_block_finale_and_host_can_force(self):
+        a, b = self.client("Anna"), self.client("Ben")
+        self.room.start()
+        for p in self.room.players.values():
+            if p["host"]:
+                p["done"] = True
+        a.set_done()
+        b.leave()                                  # der Letzte geht
+        self.assertEqual(self.room.snapshot()["phase"], "finale")
+        self.room.back_to_lobby()
+        self.room.start()
+        snap = self.room.snapshot()
+        self.assertFalse(any(p["done"] for p in snap["players"]))
+        self.room.finish()                         # Host: jetzt fertig
+        self.assertEqual(self.room.snapshot()["phase"], "finale")
+
     def test_unknown_line_is_rejected(self):
         a = self.client("Anna")
         with self.assertRaises(net.NetError):
