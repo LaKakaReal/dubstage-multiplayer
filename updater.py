@@ -53,7 +53,8 @@ ALLOWED_HOSTS = ("api.github.com", "github.com", "codeload.github.com",
                  "release-assets.githubusercontent.com")
 
 # Was beim Tausch ueberschrieben werden darf.
-OK_EXT = (".pyw", ".py", ".bat", ".cmd", ".md", ".png", ".ico", ".txt")
+OK_EXT = (".pyw", ".py", ".bat", ".cmd", ".md", ".png", ".ico", ".txt",
+          ".html")
 OK_NAMES = ("LICENSE",)
 # runtime/ ist das Python, das Setup.exe mitbringt; installer/ und dev/
 # braucht nur, wer Setup.exe oder die Screenshots selbst baut.

@@ -158,6 +158,7 @@ Source: "{#Root}\LIESMICH.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion
+Source: "{#Root}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion
 Source: "{#Runtime}\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -177,6 +178,7 @@ Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\DubForge.pyw"""; Wor
 Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\tools"
 Type: filesandordirs; Name: "{app}\assets"
+Type: filesandordirs; Name: "{app}\web"
 Type: filesandordirs; Name: "{app}\__pycache__"
 Type: files; Name: "{app}\*.py"
 Type: files; Name: "{app}\*.pyw"
