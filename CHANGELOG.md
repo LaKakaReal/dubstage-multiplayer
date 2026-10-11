@@ -21,6 +21,11 @@ versioning follows [Semantic Versioning](https://semver.org/).
   title from `_pack_info.ini`; MP3 clips, `_backing_track.mp3` and
   `dub_video.ogv` are used as they are. A clip listed at several timestamps
   becomes several lines.
+- **Friends can join in the browser.** With a tunnel, the host's lobby shows a
+  browser link (room code included). Browser guests record their own lines,
+  hear everyone's takes and watch the finale, no install needed. The host
+  serves a muted, light MP4 of the video (converted once, cached), the clips
+  and the backing track, with range requests so the video can seek.
 - **The setup installs `cloudflared`** for multiplayer tunnels: an optional
   component of the installer (ticked in *Standard* and *Everything*) and an
   optional step in `Setup.bat`. It lands in `tools\` next to ffmpeg.

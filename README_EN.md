@@ -185,6 +185,8 @@ needed for VPN, LAN and port forwarding. The tunnel works without it.
 
 **Join:** **Join game** → paste the address, enter the room code and your name.
 
+**Join in the browser (no install):** with the tunnel on, the lobby also shows a **browser link** that already contains the room code. Friends open it in Chrome, Edge or Firefox, enter a name and allow the microphone. They can record their lines, listen to everyone's takes and watch the finale (saving the video is app-only). Browsers only allow the microphone on https, so browser guests need the tunnel link; plain IP addresses work for the app only. The first time a pack is hosted, DubStage converts its video to a light MP4 for browsers in the background.
+
 **Lobby:** the right side lists who voices what, grouped by character (the name
 in the clip file names). The host clicks a row to hand it to the next player, or
 uses **Auto split**. **By line** switches to single lines. **Start** unlocks once

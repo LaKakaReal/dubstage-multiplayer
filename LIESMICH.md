@@ -184,6 +184,8 @@ braucht es für VPN, LAN und Portfreigabe. Der Tunnel geht auch ohne.
 
 **Beitreten:** **Beitreten** → Adresse einfügen, Raumcode und Namen eingeben.
 
+**Im Browser beitreten (ohne Installation):** Mit Tunnel zeigt die Lobby zusätzlich einen **Browser-Link**, in dem der Raumcode schon steckt. Freunde öffnen ihn in Chrome, Edge oder Firefox, geben einen Namen ein und erlauben das Mikrofon. Sie können ihre Zeilen aufnehmen, alle Aufnahmen anhören und das Finale ansehen (als Video speichern geht nur in der App). Browser erlauben das Mikrofon nur über https – Browser-Gäste brauchen also den Tunnel-Link, reine IP-Adressen gehen nur mit der App. Beim ersten Hosten eines Packs wandelt DubStage dessen Video im Hintergrund in ein leichtes MP4 für Browser um.
+
 **Lobby:** Rechts steht, wer was spricht, nach Figuren gruppiert (der Name in
 den Clip-Dateinamen). Der Host klickt eine Zeile an, um sie dem nächsten
 Spieler zu geben, oder nimmt **Automatisch aufteilen**. **Nach Zeilen** zeigt
