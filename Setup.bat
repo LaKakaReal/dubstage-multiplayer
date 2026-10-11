@@ -108,6 +108,38 @@ if not defined FFOK (
   if exist "tools\ffmpeg.exe" set "FFOK=1"
 )
 
+rem ---------------------------------------------------------- cloudflared
+echo.
+echo [Optional] cloudflared fuer den Mehrspieler / for multiplayer ^(~55 MB^) ...
+echo       Damit treten Freunde ohne Portfreigabe bei.
+echo       Lets friends join without port forwarding.
+set "CFOK="
+if exist "tools\cloudflared.exe" set "CFOK=1"
+if not defined CFOK ( where cloudflared >nul 2>&1 && set "CFOK=1" )
+if defined CFOK (
+  echo       cloudflared ist schon da. ok
+) else (
+  choice /c JN /n /m "       cloudflared herunterladen? / Download cloudflared? [J/N] "
+  if errorlevel 2 (
+    echo       Uebersprungen - Mehrspieler geht dann per IP/Portfreigabe oder VPN.
+  ) else (
+    if not exist tools mkdir tools
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+      "$ErrorActionPreference='Stop';" ^
+      "$u='https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe';" ^
+      "try{ Write-Host ('       -> '+$u);" ^
+      "  Invoke-WebRequest -Uri $u -OutFile 'tools\cloudflared.exe.part' -UseBasicParsing;" ^
+      "  Move-Item 'tools\cloudflared.exe.part' 'tools\cloudflared.exe' -Force;" ^
+      "  Write-Host '       cloudflared installiert.'; exit 0" ^
+      "} catch { Write-Host ('       Fehlgeschlagen: '+$_.Exception.Message);" ^
+      "  Remove-Item 'tools\cloudflared.exe.part' -ErrorAction SilentlyContinue; exit 1 }"
+    if errorlevel 1 (
+      echo [!] cloudflared konnte nicht geladen werden. Mehrspieler geht trotzdem
+      echo     per IP/Portfreigabe oder VPN.
+    )
+  )
+)
+
 echo.
 if not defined FFOK (
   echo [!] Es konnte kein ffmpeg eingerichtet werden. Ohne ffmpeg
