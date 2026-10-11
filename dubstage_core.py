@@ -453,6 +453,16 @@ def render_dub(pack, sr=SR, duck=0.18, log=None):
     Zeilen ohne Aufnahme behalten das Original - so wie es der
     Dub-Guide fuer nicht gewaehlte Figuren beschreibt.
     """
+    voices, back = render_dub_parts(pack, sr, duck)
+    return normalize(voices + back, 0.97)
+
+
+def render_dub_parts(pack, sr=SR, duck=0.18):
+    """
+    Wie render_dub, aber Stimmen und Hintergrund getrennt (gleich lang,
+    nicht normalisiert) - damit der Hintergrund leiser gedreht werden kann.
+    Voices and background separately, so the background can be turned down.
+    """
     total = max(pack.video_duration, 0.1)
     for line in pack.lines:
         total = max(total, line.end + 1.0)
@@ -469,6 +479,7 @@ def render_dub(pack, sr=SR, duck=0.18, log=None):
         base[:min(n, len(original))] = original[:n]
         have_backing = False
 
+    voices = np.zeros(n, dtype=np.float32)
     for line in pack.lines:
         a = int(line.start * sr)
         if line.take is not None and len(line.take):
@@ -478,12 +489,24 @@ def render_dub(pack, sr=SR, duck=0.18, log=None):
                 b = min(n, a + max(len(take), int(line.duration * sr)))
                 base[a:b] *= duck
             b = min(n, a + len(take))
-            base[a:b] += take[:b - a]
+            voices[a:b] += take[:b - a]
         elif line.audio is not None and have_backing:
             b = min(n, a + len(line.audio))
-            base[a:b] += line.audio[:b - a] * 0.9
+            voices[a:b] += line.audio[:b - a] * 0.9
 
-    return normalize(base, 0.97)
+    return voices, base
+
+
+def mix_parts(voices, back, peak=0.97):
+    """
+    Skaliert Stimmen + Hintergrund so, dass die Summe bei gain=1 den
+    Spitzenwert erreicht. Liefert (voices, back) fertig zum Mischen.
+    """
+    voices = np.asarray(voices, dtype=np.float32)
+    back = fit_len(np.asarray(back, dtype=np.float32), len(voices))
+    m = float(np.max(np.abs(voices + back))) if len(voices) else 0.0
+    s = peak / m if m > 1e-6 else 1.0
+    return voices * s, back * s
 
 
 def export_dub_video(pack, mixed_audio, out_path, sr=SR, log=None):
@@ -529,6 +552,8 @@ class Mic(object):
         self._env = []                                  # Spitzenwerte je Fenster
         self._env_step = max(1, int(sr * ENV_MS / 1000.0))
         self._buf = np.zeros(0, dtype=np.float32)
+        self._out = None                                # Ausgabe von play_mix
+        self.back_gain = 1.0                            # Hintergrund, live
 
     @property
     def available(self):
@@ -552,10 +577,11 @@ class Mic(object):
         except Exception:
             return ""
 
-    def start(self, playback=None, device=None):
+    def start(self, playback=None, device=None, mix=False):
         """
         playback: Float-Array, das waehrend der Aufnahme laufen soll.
         device None: das Standard-Mikrofon von Windows.
+        mix: playback ist Hintergrund und folgt back_gain (play_mix).
         """
         if not self.sd:
             raise RuntimeError("sounddevice fehlt / missing")
@@ -586,6 +612,9 @@ class Mic(object):
         self._stream = self.sd.InputStream(**kwargs)
         self._stream.start()
         if playback is not None and len(playback):
+            if mix:
+                self.play_mix(None, playback)
+                return
             try:
                 self.sd.play(np.asarray(playback, dtype=np.float32), self.sr)
             except Exception:
@@ -599,6 +628,7 @@ class Mic(object):
             except Exception:
                 pass
             self._stream = None
+        self._close_out()
         try:
             if self.sd:
                 self.sd.stop()
@@ -626,7 +656,50 @@ class Mic(object):
         except Exception:
             pass
 
+    def play_mix(self, voices, back):
+        """
+        Spielt Stimmen + Hintergrund (gleich lang, siehe mix_parts). Der
+        Hintergrund folgt back_gain live - der Regler wirkt sofort.
+        Plays voices + background; the background follows back_gain live.
+        """
+        if not self.sd or back is None:
+            return
+        self.stop_play()
+        back = np.asarray(back, dtype=np.float32)
+        voices = (np.zeros(len(back), dtype=np.float32) if voices is None
+                  else np.asarray(voices, dtype=np.float32))
+        back = fit_len(back, len(voices))
+        pos = [0]
+
+        def cb(outdata, frames, time_info, status):
+            a = pos[0]
+            b = min(len(voices), a + frames)
+            out = voices[a:b] + back[a:b] * self.back_gain
+            np.clip(out, -1.0, 1.0, out=out)
+            outdata[:b - a, 0] = out
+            outdata[b - a:] = 0
+            pos[0] = b
+            if b >= len(voices):
+                raise self.sd.CallbackStop
+
+        try:
+            self._out = self.sd.OutputStream(samplerate=self.sr, channels=1,
+                                             dtype="float32", callback=cb)
+            self._out.start()
+        except Exception:
+            self._out = None
+
+    def _close_out(self):
+        out, self._out = self._out, None
+        if out is not None:
+            try:
+                out.stop()
+                out.close()
+            except Exception:
+                pass
+
     def stop_play(self):
+        self._close_out()
         try:
             if self.sd:
                 self.sd.stop()
