@@ -82,6 +82,9 @@ body.wide header{margin-bottom:10px}
 .foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:10px}
 .foot .hint{flex:1;margin:0;text-align:left;min-width:200px}
 .foot select{width:auto;max-width:260px}
+.vol{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--dim);white-space:nowrap}
+.vol input{width:130px;accent-color:var(--acc);padding:0;border:0;background:none}
+.vol .volv{font:12px Consolas,monospace;min-width:36px;text-align:right}
 .wgrid{flex:1 1 0;min-height:0;display:grid;gap:14px;grid-template-columns:minmax(0,1fr) 300px}
 .wgrid>div:first-child{display:flex;flex-direction:column;min-height:0}
 @media (max-width:760px){
@@ -165,6 +168,7 @@ body.wide header{margin-bottom:10px}
   </div>
   <div class="foot">
     <p id="hint" class="hint"></p>
+    <label class="vol"><span data-t="bgVol"></span><input type="range" class="backvol" min="0" max="150" step="5"><span class="volv"></span></label>
     <span class="row" style="gap:8px;flex-wrap:nowrap">
       <span class="muted" style="font-size:13px" data-t="microphone"></span>
       <select class="micsel" disabled></select>
@@ -190,6 +194,7 @@ body.wide header{margin-bottom:10px}
   <div class="row" style="margin-top:14px">
     <button id="bReplay" class="go"><span id="replayIcon">▶</span> <span id="replayLabel" data-t="replayMine"></span></button>
     <button id="bBackMine">‹ <span data-t="backMine"></span></button>
+    <label class="vol right"><span data-t="bgVol"></span><input type="range" class="backvol" min="0" max="150" step="5"><span class="volv"></span></label>
   </div>
   <p id="wmsg" class="hint"></p>
 </section>
@@ -214,7 +219,8 @@ body.wide header{margin-bottom:10px}
   <div class="ctl">
   <div id="fcaption" class="caption"></div>
   <div class="progress"><div id="fprog"></div></div>
-  <div class="row" style="justify-content:center"><button id="bPlay" class="go"><span id="playIcon">▶</span> <span id="playLabel" data-t="play"></span></button></div>
+  <div class="row" style="justify-content:center;gap:24px"><button id="bPlay" class="go"><span id="playIcon">▶</span> <span id="playLabel" data-t="play"></span></button>
+    <label class="vol"><span data-t="bgVol"></span><input type="range" class="backvol" min="0" max="150" step="5"><span class="volv"></span></label></div>
   <p id="fmsg" class="hint"></p>
   </div>
 </section>
@@ -267,6 +273,7 @@ const T = {
     noMic: "No microphone available.", quiet: "very quiet – speak up",
     legendOrig: "Original", legendTake: "Your take", legendTheir: "%1's take",
     noTake: "nothing recorded yet", takeLen: "Take %1 s",
+    bgVol: "Background",
   },
   de: {
     joinIntro: "Tritt einem DubStage-Spiel im Browser bei. Du brauchst den Raumcode vom Host.",
@@ -302,6 +309,7 @@ const T = {
     noMic: "Kein Mikrofon verfügbar.", quiet: "sehr leise – lauter sprechen",
     legendOrig: "Original", legendTake: "Deine Aufnahme", legendTheir: "Aufnahme von %1",
     noTake: "noch nichts aufgenommen", takeLen: "Aufnahme %1 s",
+    bgVol: "Hintergrund",
   },
 };
 const LANG = (navigator.language || "en").toLowerCase().startsWith("de") ? "de" : "en";
@@ -332,6 +340,7 @@ const S = {
   backing: null, ctx: null, stream: null,
   phase: "idle", screen: "join", trouble: false, polling: false, ready: false, wantDone: false,
   play: null, videoReady: false, live: null, aspect: 16 / 9,
+  back: 1, backNode: null,
 };
 
 function show(screen) {
@@ -700,7 +709,7 @@ async function playScene(video, sceneStart, dur, parts, onTick, onEnd) {
     if (!p.buf) continue;
     const src = S.ctx.createBufferSource(); src.buffer = p.buf;
     const g = S.ctx.createGain(); g.gain.value = p.gain ?? 1;
-    src.connect(g).connect(S.ctx.destination);
+    src.connect(g).connect(p.back ? backNode() : S.ctx.destination);
     const off = Math.max(0, p.offset || 0);
     if (p.dur !== undefined) src.start(t0 + (p.at || 0), off, Math.max(0, p.dur)); else src.start(t0 + (p.at || 0), off);
     sources.push(src);
@@ -723,7 +732,24 @@ async function playScene(video, sceneStart, dur, parts, onTick, onEnd) {
 }
 
 function backingPart(start, dur, gain) {
-  return S.backing ? { buf: S.backing, at: 0, offset: start, dur, gain } : null;
+  return S.backing ? { buf: S.backing, at: 0, offset: start, dur, gain, back: true } : null;
+}
+
+// Hintergrund-Regler: nur die eigene Wiedergabe, wirkt sofort
+function backNode() {
+  if (!S.backNode) {
+    S.backNode = S.ctx.createGain();
+    S.backNode.gain.value = S.back;
+    S.backNode.connect(S.ctx.destination);
+  }
+  return S.backNode;
+}
+function setBack(v, save) {
+  S.back = Math.max(0, Math.min(1.5, v));
+  if (S.backNode) S.backNode.gain.setTargetAtTime(S.back, S.ctx.currentTime, 0.02);
+  for (const el of document.querySelectorAll(".backvol")) el.value = Math.round(S.back * 100);
+  for (const el of document.querySelectorAll(".volv")) el.textContent = Math.round(S.back * 100) + "%";
+  if (save) store("dubstage_backvol", String(S.back));
 }
 
 function takeGain(buf) { const m = peak(buf); return m > 1e-4 ? 0.92 / m : 1; }
@@ -1104,7 +1130,7 @@ function openFinale() {
 
 function finaleParts() {
   const parts = [];
-  if (S.backing) parts.push({ buf: S.backing, at: 0, gain: 1 });
+  if (S.backing) parts.push({ buf: S.backing, at: 0, gain: 1, back: true });
   for (const l of S.lines) {
     const take = S.takes.get(l.file);
     if (take) parts.push({ buf: take, at: l.start, gain: takeGain(take) * 0.9 });
@@ -1147,6 +1173,11 @@ document.querySelectorAll(".micsel").forEach(s => s.onchange = chooseMic);
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", () => { if (S.stream) listMics(); });
 $("bBackMine").onclick = backToLines;
 $("bPlay").onclick = toggleFinale;
+document.querySelectorAll(".backvol").forEach(el => {
+  el.oninput = () => { let v = el.value / 100; if (Math.abs(v - 1) < 0.04) v = 1; setBack(v, false); };
+  el.onchange = () => setBack(S.back, true);
+});
+{ const v = parseFloat(store("dubstage_backvol")); setBack(isNaN(v) ? 1 : v, false); }
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT") return;
   if (S.screen === "stage") {
