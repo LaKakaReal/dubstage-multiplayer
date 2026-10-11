@@ -17,6 +17,7 @@ genauso durch einen Cloudflare Quick Tunnel. Keine GUI hier drin.
 import hashlib
 import io
 import json
+import mimetypes
 import os
 import random
 import re
@@ -47,6 +48,8 @@ POLL_WAIT = 20.0          # Long-Poll-Dauer in Sekunden
 GIVE_UP_AFTER = 30.0      # so lange ohne Verbindung, dann Abbruch
 ONLINE_WINDOW = 45.0      # zuletzt gesehen vor weniger als ... = online
 USER_AGENT = "DubStage-Multiplayer/1"
+WEB_CLIENT = os.path.join(ds.APP_DIR, "web", "client.html")
+WEB_VIDEO_W = 960         # Breite des Videos fuer Browser-Gaeste
 
 COLORS = ["#25d3a4", "#ff8a5c", "#5cb8ff", "#e070ff", "#ffd84d",
           "#ff5c8a", "#8aff5c", "#5cffe9"]
@@ -317,6 +320,10 @@ class Room(object):
         self._zip_lock = threading.Lock()
         self._zip_path = None
         self.host_id = None
+        self.line_paths = dict((l.file, l.path) for l in pack.lines)
+        self._web_lock = threading.Lock()
+        self.web_state = "idle"   # idle | working | ready | failed
+        self._web_path = None
 
     # --- intern
     def _bump(self):
@@ -490,6 +497,57 @@ class Room(object):
             self._cond.wait_for(lambda: self.version > since, timeout)
             return self.snapshot()
 
+    def pack_meta(self):
+        """Was ein Browser-Gast ueber den Pack wissen muss."""
+        return {
+            "name": self.pack.name,
+            "duration": float(getattr(self.pack, "video_duration", 0) or 0),
+            "backing": bool(self.pack.backing),
+            "lines": [{"file": l.file, "start": l.start,
+                       "duration": l.duration, "name": l.name,
+                       "caption": l.caption} for l in self.pack.lines],
+        }
+
+    def prepare_web_video(self):
+        """
+        Stummes, leichtes MP4 fuer Browser-Gaeste - Chrome und Edge spielen
+        kein OGV, und durch den Tunnel zaehlt jedes Megabyte. Einmal pro
+        Pack, im Hintergrund, danach aus dem Cache.
+        """
+        with self._web_lock:
+            if self.web_state != "idle":
+                return
+            path = os.path.join(ds.CACHE_DIR,
+                                "net_%s_web.mp4" % self.pack_hash[:16])
+            if os.path.isfile(path):
+                self._web_path, self.web_state = path, "ready"
+                return
+            self.web_state = "working"
+
+        def work():
+            tmp = path + ".part.mp4"
+            try:
+                os.makedirs(ds.CACHE_DIR, exist_ok=True)
+                pc.run([pc.ffmpeg(), "-y", "-hide_banner", "-loglevel",
+                        "error", "-i", self.pack.video, "-an",
+                        "-vf", "scale='min(%d,iw)':-2" % WEB_VIDEO_W,
+                        "-c:v", "libx264", "-preset", "veryfast",
+                        "-crf", "28", "-pix_fmt", "yuv420p",
+                        "-movflags", "+faststart", tmp], check=True)
+                os.replace(tmp, path)
+                self._web_path, self.web_state = path, "ready"
+            except Exception as ex:
+                print("DubStage: web video failed: %s" % ex)
+                self.web_state = "failed"
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def web_video(self):
+        self.prepare_web_video()
+        return self.web_state, self._web_path
+
     def pack_zip(self):
         with self._zip_lock:
             if self._zip_path and os.path.isfile(self._zip_path):
@@ -506,38 +564,6 @@ class Room(object):
 # ==========================================================================
 #  HTTP-Server
 # ==========================================================================
-
-LANDING_PAGE = """<!doctype html>
-<html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DubStage game</title>
-<style>
- body{margin:0;min-height:100vh;display:grid;place-items:center;
-  background:#0a0b12;color:#eef1ff;font:16px/1.5 "Segoe UI",system-ui,sans-serif}
- main{max-width:520px;padding:32px 24px}
- h1{margin:0 0 4px;font-size:26px}
- p{color:#8a92b4} b{color:#ffc861}
- ol{padding-left:20px} li{margin:6px 0}
- hr{border:0;border-top:1px solid #333a5c;margin:24px 0}
-</style></head><body><main>
-<h1>A DubStage game is running here</h1>
-<p>This address is for the DubStage app, not the browser.</p>
-<ol>
- <li>Open <b>DubStage</b> and click <b>Join game</b>.</li>
- <li>Paste this page's address.</li>
- <li>Enter the <b>room code</b> the host gave you, and your name.</li>
-</ol>
-<hr>
-<h1>Hier läuft ein DubStage-Spiel</h1>
-<p>Diese Adresse ist für die DubStage-App, nicht für den Browser.</p>
-<ol>
- <li><b>DubStage</b> öffnen und <b>Beitreten</b> klicken.</li>
- <li>Die Adresse dieser Seite einfügen.</li>
- <li>Den <b>Raumcode</b> vom Host und deinen Namen eingeben.</li>
-</ol>
-</main></body></html>
-"""
-
 
 class _Handler(BaseHTTPRequestHandler):
     server_version = "DubStage"
@@ -571,38 +597,64 @@ class _Handler(BaseHTTPRequestHandler):
             raise ValueError("body too large")
         return self.rfile.read(n) if n else b""
 
+    def _query(self):
+        return urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+
     def _authorized(self):
-        code = self.headers.get("X-Room", "")
+        # <video src> und <audio src> koennen keine Header setzen - dort
+        # steht der Raumcode in ?room=.
+        code = self.headers.get("X-Room") or \
+            self._query().get("room", [""])[0]
         if code.strip().upper() != self.room.code:
             self._send(403, "wrong room code")
             return False
         self.room.touch(self.headers.get("X-Token"))
         return True
 
-    def _line_from_path(self):
-        name = urllib.parse.unquote(self.path.split("?", 1)[0][len("/take/"):])
+    def _line_from_path(self, prefix="/take/"):
+        name = urllib.parse.unquote(self.path.split("?", 1)[0][len(prefix):])
         return name if name in self.room.line_files else None
 
     # --- Methoden
     def do_GET(self):
         if self.path.split("?", 1)[0] in ("/", "/index.html") \
                 and not self.headers.get("X-Room"):
-            # Jemand hat die Adresse im Browser geoeffnet - erklaeren statt 403.
-            self._send(200, LANDING_PAGE.encode("utf-8"),
-                       "text/html; charset=utf-8")
+            # Browser-Gaeste: die Web-App selbst, Beitreten mit Raumcode dort.
+            self._send_web_client()
             return
         if not self._authorized():
             return
         path = self.path.split("?", 1)[0]
         if path == "/state":
-            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            q = self._query()
             try:
                 since = int(q.get("since", ["0"])[0])
             except ValueError:
                 since = 0
             self._send(200, self.room.wait_state(since))
         elif path == "/pack.zip":
-            self._send_file(self.room.pack_zip())
+            self._send_file(self.room.pack_zip(), "application/zip")
+        elif path == "/pack/meta":
+            self._send(200, self.room.pack_meta())
+        elif path == "/media/video":
+            state, video = self.room.web_video()
+            if state == "ready":
+                self._send_file(video, "video/mp4")
+            elif state == "failed":
+                self._send(500, "video conversion failed")
+            else:
+                self._send(503, "preparing")
+        elif path == "/media/backing":
+            if self.room.pack.backing:
+                self._send_file(self.room.pack.backing)
+            else:
+                self._send(404, "no backing track")
+        elif path.startswith("/media/line/"):
+            line = self._line_from_path("/media/line/")
+            if line is None:
+                self._send(404, "unknown line")
+            else:
+                self._send_file(self.room.line_paths[line])
         elif path.startswith("/take/"):
             line = self._line_from_path()
             raw = self.room.get_take(line) if line else None
@@ -613,14 +665,57 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             self._send(404, "not found")
 
-    def _send_file(self, path):
+    def _send_web_client(self):
+        try:
+            with open(WEB_CLIENT, "rb") as fh:
+                body = fh.read()
+        except OSError:
+            body = (b"<!doctype html><meta charset=utf-8><p>A DubStage game "
+                    b"is running here. Open DubStage and use Join game.")
+        self._send(200, body, "text/html; charset=utf-8")
+
+    def _send_file(self, path, ctype=None):
+        """Datei mit Range-Unterstuetzung - Browser springen so im Video."""
+        ctype = ctype or mimetypes.guess_type(path)[0] or \
+            "application/octet-stream"
         size = os.path.getsize(path)
-        self.send_response(200)
-        self.send_header("Content-Type", "application/zip")
-        self.send_header("Content-Length", str(size))
+        start, end = 0, size - 1
+        m = re.match(r"bytes=(\d*)-(\d*)$", self.headers.get("Range") or "")
+        partial = bool(m and (m.group(1) or m.group(2)))
+        if partial:
+            if m.group(1):
+                start = int(m.group(1))
+                if m.group(2):
+                    end = min(int(m.group(2)), size - 1)
+            else:                                   # die letzten n Bytes
+                start = max(0, size - int(m.group(2)))
+            if start > end or start >= size:
+                self.send_response(416)
+                self.send_header("Content-Range", "bytes */%d" % size)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+        self.send_response(206 if partial else 200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        if partial:
+            self.send_header("Content-Range",
+                             "bytes %d-%d/%d" % (start, end, size))
         self.end_headers()
+        if self.command == "HEAD":
+            return
         with open(path, "rb") as fh:
-            shutil.copyfileobj(fh, self.wfile, 256 * 1024)
+            fh.seek(start)
+            left = end - start + 1
+            while left > 0:
+                chunk = fh.read(min(256 * 1024, left))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                left -= len(chunk)
+
+    do_HEAD = do_GET
 
     def do_POST(self):
         if not self._authorized():
