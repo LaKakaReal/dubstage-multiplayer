@@ -355,7 +355,7 @@ class Room(object):
                 "id": pid, "name": name, "host": host,
                 "color": COLORS[(self._next_id - 2) % len(COLORS)],
                 "ready": host, "progress": 1.0 if host else 0.0,
-                "seen": time.time(), "left": False,
+                "seen": time.time(), "left": False, "done": False,
             }
             self.tokens[token] = pid
             if host:
@@ -375,6 +375,7 @@ class Room(object):
             for f, owner in list(self.owner.items()):
                 if owner == pid:
                     self.owner[f] = heir
+            self._check_all_done()
             self._bump()
 
     def set_status(self, token, ready=None, progress=None):
@@ -460,12 +461,45 @@ class Room(object):
     def start(self):
         with self._cond:
             self.phase = "recording"
+            self._reset_done()
             self._bump()
 
     def back_to_lobby(self):
         with self._cond:
             self.phase = "lobby"
+            self._reset_done()
             self._bump()
+
+    def finish(self):
+        """Host: Finale fuer alle, auch wenn noch nicht jeder bereit ist."""
+        with self._cond:
+            if self.phase == "recording":
+                self.phase = "finale"
+                self._bump()
+
+    def _reset_done(self):
+        for p in self.players.values():
+            p["done"] = False
+
+    def _check_all_done(self):
+        """Sind alle (noch anwesenden) Spieler bereit, beginnt das Finale."""
+        active = [p for p in self.players.values() if not p["left"]]
+        if self.phase == "recording" and active and \
+                all(p["done"] for p in active):
+            self.phase = "finale"
+
+    # --- Bereit am Ende / ready at the end
+    def set_done(self, token, done=True):
+        with self._cond:
+            pid = self._player_by_token(token)
+            if pid is None:
+                return 403, "unknown player"
+            if self.phase != "recording":
+                return 409, "not recording"
+            self.players[pid]["done"] = bool(done)
+            self._check_all_done()
+            self._bump()
+            return 200, "ok"
 
     def close(self):
         """Spiel beendet - wartende Gaeste erfahren es sofort."""
@@ -483,6 +517,8 @@ class Room(object):
                 return 404, "unknown line"
             if self.owner[line_file] != pid:
                 return 403, "not your line"
+            if self.phase == "finale":
+                return 409, "game finished"
             if not _valid_wav(raw):
                 return 400, "not a 16-bit WAV"
             self._rev += 1
@@ -500,6 +536,8 @@ class Room(object):
                 return 404, "unknown line"
             if self.owner[line_file] != pid:
                 return 403, "not your line"
+            if self.phase == "finale":
+                return 409, "game finished"
             self.take_data.pop(line_file, None)
             self.takes.pop(line_file, None)
             self._bump()
@@ -777,6 +815,9 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, "ok")
             else:
                 self._send(403, "unknown player")
+        elif path == "/done":
+            code, msg = self.room.set_done(token, bool(data.get("done", True)))
+            self._send(code, msg)
         elif path == "/claim":
             lines = data.get("lines")
             if not isinstance(lines, list):
@@ -913,6 +954,10 @@ class Client(object):
         if progress is not None:
             body["progress"] = progress
         self._json("POST", "/status", body)
+
+    def set_done(self, done=True):
+        """Am Ende 'bereit' melden - oder zuruecknehmen, um nachzubessern."""
+        self._json("POST", "/done", {"done": done})
 
     def claim(self, files, take=True):
         """Rollen nehmen (take) oder wieder abgeben - nur in der Lobby."""
