@@ -199,12 +199,17 @@ def _cv_meta(folder, audio_name):
     return {"timestamps": times, "characters": chars}
 
 
-def find_packs(extra_dirs=None):
-    """Sucht Dub-Packs im eigenen packs-Ordner und in zusaetzlichen Ordnern."""
+def find_packs(extra_dirs=None, pending=None):
+    """
+    Sucht Dub-Packs im eigenen packs-Ordner und in zusaetzlichen Ordnern.
+    Zips und RARs (dort oder direkt hinzugefuegt) zaehlen, sobald sie
+    entpackt sind; noch nicht entpackte landen in der Liste pending.
+    """
     roots = []
 
     def add_root(p):
-        if p and os.path.isdir(p) and os.path.normpath(p) not in \
+        ok = p and (os.path.isdir(p) or (is_archive(p) and os.path.isfile(p)))
+        if ok and os.path.normpath(p) not in \
                 [os.path.normpath(r) for r in roots]:
             roots.append(p)
 
@@ -238,9 +243,181 @@ def find_packs(extra_dirs=None):
             if not entry.startswith(("_", ".")) and os.path.isdir(sub):
                 visit(sub, depth - 1)
 
+    def visit_archive(path):
+        """Schon entpackt: wie ein Ordner. Sonst fuer spaeter vormerken."""
+        target = archive_target(path)
+        if os.path.isdir(target):
+            visit(target, 2)
+        elif pending is not None and path not in pending                 and target not in NOT_PACKS:
+            pending.append(path)
+
     for root in roots:
+        if is_archive(root):
+            visit_archive(root)
+            continue
         visit(root, 2)
+        # Zips und RARs direkt im Ordner (dort landen Downloads)
+        try:
+            entries = sorted(os.listdir(root))
+        except OSError:
+            entries = []
+        for entry in entries:
+            sub = os.path.join(root, entry)
+            # Schon von Hand entpackt (X.zip neben Ordner X)? Dann den Ordner.
+            if is_archive(sub) and os.path.isfile(sub)                     and not os.path.isdir(os.path.splitext(sub)[0]):
+                visit_archive(sub)
     return packs
+
+
+# ==========================================================================
+#  Archive / zip and rar packs
+# ==========================================================================
+
+ARCHIVE_EXTS = (".zip", ".rar")
+ARCHIVES_DIR = os.path.join(PACKS_DIR, "_archives")   # entpackte Archive
+NOT_PACKS = set()      # Archive ohne dub_video (archive_target), je Sitzung
+
+
+def is_archive(path):
+    return os.path.splitext(path)[1].lower() in ARCHIVE_EXTS
+
+
+def archive_target(path):
+    """
+    Ordner, in den ein Archiv entpackt wird. Name, Groesse und Zeitstempel
+    stecken im Namen - ein ersetztes Archiv wird neu entpackt.
+    """
+    import hashlib
+    try:
+        st = os.stat(path)
+        sig = "%s|%d|%d" % (os.path.normcase(os.path.abspath(path)),
+                            st.st_size, int(st.st_mtime))
+    except OSError:
+        sig = os.path.normcase(os.path.abspath(path))
+    h = hashlib.sha1(sig.encode("utf-8")).hexdigest()[:8]
+    stem = pc.safe_name(os.path.splitext(os.path.basename(path))[0], "pack")
+    return os.path.join(ARCHIVES_DIR, "%s-%s" % (stem[:60], h))
+
+
+def _extract_zip(path, dest):
+    """Entpackt ein Zip - nie ausserhalb von dest."""
+    import zipfile
+    root = os.path.abspath(dest)
+    with zipfile.ZipFile(path) as z:
+        for info in z.infolist():
+            name = info.filename.replace("\\", "/")
+            target = os.path.abspath(os.path.join(root, *name.split("/")))
+            if not target.startswith(root + os.sep):
+                raise RuntimeError("Unsafe path in archive: %r" % info.filename)
+            if name.endswith("/"):
+                os.makedirs(target, exist_ok=True)
+                continue
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with z.open(info) as src, open(target, "wb") as dst:
+                shutil.copyfileobj(src, dst, 1024 * 1024)
+
+
+def _windows_tar():
+    """Windows 10/11 bringt bsdtar (libarchive) mit, das RAR und RAR5 liest."""
+    tar = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"),
+                       "System32", "tar.exe")
+    return tar if os.path.isfile(tar) else None
+
+
+def _rar_tools():
+    """Programme, die RAR entpacken koennen - in dieser Reihenfolge."""
+    tools = []
+    tar = _windows_tar()
+    if tar:
+        tools.append(lambda src, dst: [tar, "-xf", src, "-C", dst])
+    for p in (shutil.which("UnRAR"),
+              os.path.join(os.environ.get("ProgramFiles", ""), "WinRAR",
+                           "UnRAR.exe")):
+        if p and os.path.isfile(p):
+            tools.append(lambda src, dst, p=p: [p, "x", "-o+", "-y", src,
+                                                dst + os.sep])
+            break
+    for p in (shutil.which("7z"),
+              os.path.join(os.environ.get("ProgramFiles", ""), "7-Zip",
+                           "7z.exe")):
+        if p and os.path.isfile(p):
+            tools.append(lambda src, dst, p=p: [p, "x", "-y", "-o" + dst, src])
+            break
+    return tools
+
+
+def archive_names(path):
+    """Dateinamen im Archiv, ohne zu entpacken. None = nicht lesbar."""
+    try:
+        if os.path.splitext(path)[1].lower() == ".zip":
+            import zipfile
+            with zipfile.ZipFile(path) as z:
+                return z.namelist()
+        tar = _windows_tar()
+        if tar:
+            import subprocess
+            res = subprocess.run([tar, "-tf", path], capture_output=True,
+                                 timeout=60, creationflags=0x08000000)
+            if res.returncode != 0:
+                return None
+            return res.stdout.decode("utf-8", "replace").splitlines()
+    except Exception:
+        return None
+    return None
+
+
+def archive_has_pack(path):
+    """
+    Steckt ein Dub-Pack drin (eine dub_video-Datei)? Unbekannt zaehlt als
+    ja - dann entscheidet das Entpacken.
+    """
+    names = archive_names(path)
+    if names is None:
+        return True
+    for n in names:
+        base = n.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1].lower()
+        if base.startswith("dub_video"):
+            return True
+    return False
+
+
+def extract_archive(path, log=None):
+    """
+    Entpackt ein Zip oder RAR nach archive_target(path) und gibt den Ordner
+    zurueck. Erst in einen .part-Ordner, damit ein Abbruch nichts Halbes
+    hinterlaesst.
+    """
+    target = archive_target(path)
+    if os.path.isdir(target):
+        return target
+    part = target + ".part"
+    shutil.rmtree(part, ignore_errors=True)
+    os.makedirs(part)
+    try:
+        if os.path.splitext(path)[1].lower() == ".zip":
+            _extract_zip(path, part)
+        else:
+            tools = _rar_tools()
+            if not tools:
+                raise RuntimeError("No program found that can open RAR "
+                                   "files (Windows tar, WinRAR or 7-Zip).")
+            err = None
+            for make in tools:
+                try:
+                    pc.run(make(path, part), log=log)
+                    err = None
+                    break
+                except Exception as ex:
+                    err = ex
+                    shutil.rmtree(part, ignore_errors=True)
+                    os.makedirs(part)
+            if err is not None:
+                raise err
+        os.replace(part, target)
+    except Exception:
+        shutil.rmtree(part, ignore_errors=True)
+        raise
+    return target
 
 
 # ==========================================================================
