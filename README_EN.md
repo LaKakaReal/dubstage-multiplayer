@@ -153,7 +153,7 @@ Allowed range is 8 to 30. The frames are regenerated the next time you open that
 
 ## Packs that do not show up
 
-The search covers the `packs` folder next to the tools. **Add folder** permanently adds any other folder.
+The search covers the `packs` folder next to the tools. **Add folder** permanently adds any other folder. It finds packs inside it, one level deeper (like the folder an unzipped pack usually comes in), or the folder itself if it is a pack.
 
 For a folder to count as a pack it needs a **`dub_video`** (mp4, ogv, mkv, webm, mov or avi) and at least one clip with a timestamp in its file name.
 

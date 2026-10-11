@@ -22,6 +22,12 @@ versioning follows [Semantic Versioning](https://semver.org/).
   `dub_video.ogv` are used as they are. A clip listed at several timestamps
   becomes several lines.
 
+### Fixed
+
+- **Add folder found no packs** when the folder was a pack itself or held
+  it inside an unzipped wrapper folder (`pennywise_vs_groot/Pennywise vs
+  Groot`). Both are found now.
+
 ## [1.3.0] - 2026-09-28
 
 ### Added

@@ -152,7 +152,7 @@ Erlaubt sind 8 bis 30. Die Bilder werden beim nächsten Öffnen des Packs neu er
 
 ## Packs, die nicht auftauchen
 
-Gesucht wird im Ordner `packs` neben den Tools. Über **Ordner hinzufügen** lässt sich jeder weitere Ordner dauerhaft mit durchsuchen.
+Gesucht wird im Ordner `packs` neben den Tools. Über **Ordner hinzufügen** lässt sich jeder weitere Ordner dauerhaft mit durchsuchen. Gefunden werden Packs darin, eine Ebene tiefer (wie im Ordner eines entpackten Zips) oder der Ordner selbst, wenn er ein Pack ist.
 
 Damit ein Ordner als Pack zählt, braucht er ein **`dub_video`** (mp4, ogv, mkv, webm, mov oder avi) und mindestens einen Clip mit Zeitstempel im Dateinamen.
 
