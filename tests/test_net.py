@@ -194,6 +194,47 @@ class ServerTests(unittest.TestCase):
         a.delete_take(line)
         self.assertNotIn(line, b.state()["takes"])
 
+    def test_roles_start_free_and_can_be_claimed(self):
+        a, b = self.client("Anna"), self.client("Ben")
+        files = [l.file for l in self.pack.lines]
+        self.assertEqual(set(a.state()["owner"].values()), {None})
+        anna = [l.file for l in self.pack.lines if l.name == "Anna"]
+        a.claim(anna)
+        owner = b.state()["owner"]
+        self.assertEqual([owner[f] for f in anna], [a.player] * 2)
+        # Wer eine Rolle hat, behaelt sie - andere koennen sie nicht nehmen
+        with self.assertRaises(net.NetError) as cm:
+            b.claim(anna)
+        self.assertIn("taken", str(cm.exception))
+        # Abgeben macht sie wieder frei; fremde Rollen abgeben tut nichts
+        b.claim(anna, take=False)
+        self.assertEqual(b.state()["owner"][anna[0]], a.player)
+        a.claim(anna, take=False)
+        b.claim(anna)
+        self.assertEqual(a.state()["owner"][anna[0]], b.player)
+        # Nach dem Start ist die Verteilung fest
+        self.room.start()
+        with self.assertRaises(net.NetError):
+            a.claim([files[1]])
+
+    def test_auto_split_keeps_chosen_roles(self):
+        a, b = self.client("Anna"), self.client("Ben")
+        ben = [l.file for l in self.pack.lines if l.name == "Ben"]
+        a.claim(ben)
+        self.room.auto_split()
+        owner = self.room.snapshot()["owner"]
+        self.assertEqual(owner[ben[0]], a.player)
+        self.assertNotIn(None, owner.values())
+        # Die freien Anna-Zeilen gingen an die, die noch nichts hatten
+        anna = [owner[l.file] for l in self.pack.lines if l.name == "Anna"]
+        self.assertNotIn(a.player, anna)
+
+    def test_leaving_in_lobby_frees_roles(self):
+        a = self.client("Anna")
+        a.claim([self.pack.lines[0].file])
+        a.leave()
+        self.assertIsNone(self.room.snapshot()["owner"][self.pack.lines[0].file])
+
     def test_unknown_line_is_rejected(self):
         a = self.client("Anna")
         with self.assertRaises(net.NetError):
