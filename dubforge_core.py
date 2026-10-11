@@ -814,6 +814,82 @@ def write_pack_info(path, title="", icon="", authors=(), readme="",
     return _cv_write(path, lines)
 
 
+def _cv_value(s, i):
+    """Liest einen Wert ab Position i: "Text", [Liste] oder Zahl/Wort."""
+    if s[i] == '"':
+        j, out = i + 1, []
+        while j < len(s) and s[j] != '"':
+            if s[j] == "\\" and j + 1 < len(s):
+                j += 1
+            out.append(s[j])
+            j += 1
+        return "".join(out), j + 1
+    if s[i] == "[":
+        items, j = [], i + 1
+        while j < len(s):
+            while j < len(s) and s[j] in " \t\r\n,":
+                j += 1
+            if j >= len(s) or s[j] == "]":
+                return items, j + 1
+            val, j = _cv_value(s, j)
+            items.append(val)
+        return items, j
+    j = i
+    while j < len(s) and s[j] not in ",]\r\n":
+        j += 1
+    raw = s[i:j].strip()
+    try:
+        return float(raw), j
+    except ValueError:
+        return raw, j
+
+
+def parse_cv(text):
+    """
+    Liest eine Choicer-Voicer-.txt/.ini (Godot-ConfigFile) als dict.
+    Texte duerfen ueber mehrere Zeilen gehen - echte Packs tun das.
+    """
+    out = {}
+    s = text.lstrip("﻿")
+    i = 0
+    while i < len(s):
+        while i < len(s) and s[i] in " \t\r\n":
+            i += 1
+        if i >= len(s):
+            break
+        if s[i] in "[;#":                      # Abschnitt oder Kommentar
+            j = s.find("\n", i)
+            i = len(s) if j < 0 else j + 1
+            continue
+        eq = s.find("=", i)
+        nl = s.find("\n", i)
+        if eq < 0 or (0 <= nl < eq):
+            i = len(s) if nl < 0 else nl + 1
+            continue
+        key = s[i:eq].strip()
+        j = eq + 1
+        while j < len(s) and s[j] in " \t":
+            j += 1
+        if j >= len(s):
+            out[key] = ""
+            break
+        out[key], i = _cv_value(s, j)
+    return out
+
+
+def read_cv_file(path):
+    with io.open(path, "r", encoding="utf-8", errors="replace") as f:
+        return parse_cv(f.read())
+
+
+def cv_caption_text(caption):
+    """'[Figur] “Text”' -> 'Text' - so, wie DubStage Untertitel zeigt."""
+    s = str(caption or "").strip()
+    s = re.sub(r"^\[[^\]\n]*\]\s*", "", s)
+    s = s.strip().strip("“”\"").strip()
+    return re.sub(r"\s+", " ", s)
+
+
 def cv_numbering(clips):
     """
     Nummeriert je Figur durch, nicht ueber die ganze Szene.
@@ -902,6 +978,9 @@ def read_captions(folder):
                     with open(os.path.join(folder, f), "r", encoding="utf-8",
                               errors="replace") as fh:
                         text = fh.read().strip()
+                    if text.startswith("[data]"):
+                        # Choicer-Voicer-Metadaten statt reinem Untertitel
+                        text = cv_caption_text(parse_cv(text).get("caption"))
                     if text:
                         out[clip] = text
                 except Exception:

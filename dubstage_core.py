@@ -126,6 +126,7 @@ def load_pack(folder):
     pack.video = video
 
     from_txt = timestamps_from_txt(folder)
+    cv = {}                                     # Choicer-Voicer-Metadaten
     entries = []
     for f in sorted(os.listdir(folder)):
         low = f.lower()
@@ -139,20 +140,63 @@ def load_pack(folder):
         ts = timestamp_from_name(f)
         if ts is None:
             ts = from_txt.get(f)
-        entries.append((f, ts))
+        if ts is not None:
+            entries.append((f, ts, 1))
+            continue
+        # Choicer Voicer: Zeitstempel in der .txt neben dem Clip, ein Clip
+        # darf an mehreren Stellen der Szene laufen.
+        meta = _cv_meta(folder, f)
+        if meta is not None:
+            cv[f] = meta
+            for n, t in enumerate(meta["timestamps"]):
+                entries.append((f, t, n + 1))
 
-    known = [e for e in entries if e[1] is not None]
-    if not known:
+    if not entries:
         # Ohne Zeitstempel koennen wir nicht synchronisieren.
         return None
 
-    known.sort(key=lambda e: e[1])
+    entries.sort(key=lambda e: e[1])
     captions = pc.read_captions(folder)
-    for i, (f, ts) in enumerate(known):
+    for i, (f, ts, n) in enumerate(entries):
         line = Line(os.path.join(folder, f), ts, i)
+        if n > 1:
+            line.file = "%s#%d" % (f, n)     # eindeutiger Schluessel
         line.caption = captions.get(f, "")
+        meta = cv.get(f)
+        if meta and meta["characters"]:
+            line.name = meta["characters"][0]
         pack.lines.append(line)
+
+    info = os.path.join(folder, pc.CV_PACK_INFO)
+    if os.path.isfile(info):
+        try:
+            title = str(pc.read_cv_file(info).get("title") or "").strip()
+            if title:
+                pack.name = title
+        except Exception:
+            pass
     return pack
+
+
+def _cv_meta(folder, audio_name):
+    """Liest '<clip>.txt' im Choicer-Voicer-Format, sonst None."""
+    path = os.path.join(folder, os.path.splitext(audio_name)[0] + ".txt")
+    if not os.path.isfile(path):
+        return None
+    try:
+        data = pc.read_cv_file(path)
+    except Exception:
+        return None
+    times = data.get("dub_timestamps")
+    if not isinstance(times, list):
+        return None
+    times = sorted(float(t) for t in times if isinstance(t, float) and t >= 0)
+    if not times:
+        return None
+    chars = data.get("dub_characters")
+    chars = [str(c).strip() for c in chars if str(c).strip()] \
+        if isinstance(chars, list) else []
+    return {"timestamps": times, "characters": chars}
 
 
 def find_packs(extra_dirs=None):
