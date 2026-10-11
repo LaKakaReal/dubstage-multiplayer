@@ -197,7 +197,15 @@ T = {
     "st_prep":    ("bereitet vor", "preparing"),
     "st_off":     ("offline", "offline"),
     "roles":      ("Wer spricht was", "Who voices what"),
-    "roles_hint": ("Klicken zum Wechseln", "Click to change"),
+    "roles_hint": ("Klicken: wer spricht die Rolle (auch frei)",
+                   "Click to change who voices it (or free it)"),
+    "roles_pick": ("Freie Rolle anklicken zum Nehmen, eigene zum Abgeben",
+                   "Click a free role to take it, click yours to give it back"),
+    "role_free":  ("frei", "free"),
+    "role_taken": ("Diese Rolle hat schon jemand.",
+                   "Someone already has that role."),
+    "unassigned_n": ("%d Zeilen ohne Sprecher – dort bleibt das Original.",
+                     "%d lines have no one – they keep the original voice."),
     "by_line":    ("Nach Zeilen", "By line"),
     "by_char":    ("Nach Figuren", "By character"),
     "dl_pack":    ("Pack wird geladen ...", "Downloading the pack ..."),
@@ -1254,7 +1262,8 @@ class Game(tk.Tk):
                 self.cv.itemconfigure(self.line_title, text=line.name,
                                       fill=DIM)
                 if self.net:
-                    p = self._net_player(self._net_owner(line)) or {}
+                    p = self._net_player(self._net_owner(line)) or \
+                        {"name": t("role_free")}
                     self.cv.itemconfigure(
                         self.line_title, fill=p.get("color", DIM),
                         text="%s   ·   %s" % (
@@ -2320,8 +2329,8 @@ class Game(tk.Tk):
         else:
             waiting = {}
             for l in lines:
-                if l.take is None:
-                    pid = self._net_owner(l)
+                pid = self._net_owner(l)
+                if l.take is None and pid is not None:
                     waiting[pid] = waiting.get(pid, 0) + 1
             if waiting:
                 parts.append(t("net_waiting", ", ".join(
@@ -2461,20 +2470,43 @@ class Game(tk.Tk):
         return net.line_groups(self.pack.lines)
 
     def _lobby_cycle(self, files):
-        """Host klickt eine Rolle: naechster Spieler bekommt sie."""
+        """
+        Host: Rolle reihum weitergeben (frei -> Spieler 1 -> ... -> frei).
+        Alle anderen: freie Rolle nehmen, eigene abgeben.
+        """
         s = self.net
-        if s is None or not s.is_host:
+        if s is None:
             return
-        ids = s.room.active_ids()
-        cur = s.room.owner.get(files[0])
-        nxt = ids[(ids.index(cur) + 1) % len(ids)] if cur in ids else ids[0]
-        s.room.assign_all(dict((f, nxt) for f in files))
+        if s.is_host:
+            order = [None] + s.room.active_ids()
+            cur = s.room.owner.get(files[0])
+            nxt = order[(order.index(cur) + 1) % len(order)] \
+                if cur in order else None
+            s.room.assign_all(dict((f, nxt) for f in files))
+            return
+        owner = (s.state or {}).get("owner", {})
+        owners = set(owner.get(f) for f in files)
+        if owners == {s.me}:
+            take = False
+        elif owners <= {None, s.me}:
+            take = True
+        else:
+            self.cv.itemconfigure(self.lobby_msg, text=t("role_taken"),
+                                  fill=RED)
+            return
+
+        def failed(msg):
+            if self.screen == "lobby":
+                self.cv.itemconfigure(self.lobby_msg, fill=RED,
+                                      text=t("role_taken")
+                                      if "taken" in msg else msg)
+        self._run_bg(lambda: s.client.claim(files, take), lambda: None,
+                     on_error=failed)
 
     def net_auto_split(self):
         s = self.net
         if s and s.is_host and self.pack:
-            s.room.assign_all(net.auto_assign(self.pack.lines,
-                                              s.room.active_ids()))
+            s.room.auto_split()
 
     def _toggle_lobby_view(self):
         self.lobby_by_line = not self.lobby_by_line
@@ -2571,10 +2603,10 @@ class Game(tk.Tk):
         round_rect(cv, rx0, top, rx1, bottom, r=16, fill=PANEL, outline=EDGE)
         cv.create_text(rx0 + 20, top + 24, anchor="w", text=t("roles"),
                        fill=TXT, font=("Segoe UI Semibold", 13))
-        if s.is_host:
-            cv.create_text(rx0 + 20, top + 46, anchor="w",
-                           text=t("roles_hint"), fill=DIM,
-                           font=("Segoe UI", 9))
+        cv.create_text(rx0 + 20, top + 46, anchor="w",
+                       text=t("roles_hint") if s.is_host
+                       else t("roles_pick"), fill=DIM,
+                       font=("Segoe UI", 9))
         if self.pack is None:
             cv.create_text((rx0 + rx1) / 2, (top + bottom) / 2,
                            text=t("dl_pack"), fill=GOLD,
@@ -2598,7 +2630,8 @@ class Game(tk.Tk):
                     pid = owner.get(l.file)
                     if pid not in pids:
                         pids.append(pid)
-                ps = [self._net_player(pid) or {} for pid in pids]
+                ps = [self._net_player(pid) or {"name": t("role_free")}
+                      for pid in pids]
                 round_rect(cv, rx0 + 14, y, rx1 - 14, y + row_h - 6, r=10,
                            fill=PANEL_HI, outline="")
                 seg = (row_h - 6) / float(max(1, len(ps)))
@@ -2620,10 +2653,9 @@ class Game(tk.Tk):
                                                for p in ps),
                                fill=ps[0].get("color", DIM) if ps else DIM,
                                font=("Segoe UI Semibold", 10))
-                if s.is_host:
-                    self.lobby_rows.append(
-                        ((rx0 + 14, y, rx1 - 14, y + row_h - 6),
-                         [l.file for l in lines]))
+                self.lobby_rows.append(
+                    ((rx0 + 14, y, rx1 - 14, y + row_h - 6),
+                     [l.file for l in lines]))
             if len(units) > per_page:
                 cv.create_text((rx0 + rx1) / 2, bottom - 10,
                                text="%d / %d" % (min(len(units),
@@ -2644,6 +2676,10 @@ class Game(tk.Tk):
                            font=("Segoe UI Semibold", 13))
             go.set_enabled(all_ready and self.pack is not None)
             msg = t("can_start") if all_ready else t("wait_ready")
+            free = sum(1 for pid in st.get("owner", {}).values()
+                       if pid is None)
+            if all_ready and free:
+                msg = t("unassigned_n", free)
         else:
             msg = t("wait_host") if self.pack is not None else t("dl_pack")
         if s.trouble:
