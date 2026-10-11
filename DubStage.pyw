@@ -180,7 +180,10 @@ T = {
     "share_addr": ("Schick deinen Freunden Adresse + Raumcode",
                    "Send your friends an address + the room code"),
     "joined_addr": ("Verbunden mit", "Connected to"),
-    "addr_tunnel": ("Cloudflare-Tunnel", "Cloudflare tunnel"),
+    "addr_tunnel": ("Cloudflare-Tunnel (für die App)",
+                    "Cloudflare tunnel (for the app)"),
+    "addr_browser": ("Browser-Link – ohne App, mit Raumcode",
+                     "Browser link – no app needed, code included"),
     "addr_lan":   ("LAN / VPN (Tailscale, Radmin ...)",
                    "LAN / VPN (Tailscale, Radmin ...)"),
     "addr_inet":  ("Internet", "Internet"),
@@ -2074,6 +2077,7 @@ class Game(tk.Tk):
             server = net.Server(room, port)
             try:
                 room.pack_zip()          # vorab, damit Gaeste nicht warten
+                room.prepare_web_video()  # MP4 fuer Browser, im Hintergrund
             except Exception:
                 server.close()
                 raise
@@ -2439,6 +2443,9 @@ class Game(tk.Tk):
         port = s.server.port
         out = []
         if s.tunnel_url:
+            # Browser erlauben das Mikrofon nur ueber https - also nur hier.
+            link = "%s/#code=%s" % (s.tunnel_url, s.client.code)
+            out.append((t("addr_browser"), link.split("://", 1)[1], link))
             out.append((t("addr_tunnel"), s.tunnel_url.split("://", 1)[1],
                         s.tunnel_url))
         lan = "%s:%d" % (net.lan_ip(), port)
