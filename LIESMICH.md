@@ -50,7 +50,7 @@ bleiben unveraendert. Clips ohne zugeordnete Sprache werden gemeldet.
 1. **`DubStage-Setup-<Version>.exe`** von der [Release-Seite](https://github.com/xmrius/dubstage/releases/latest) laden
 2. Ausführen — ohne Adminrechte, ein eigenes Python ist nicht nötig
 
-Das Setup bringt sein eigenes Python mit allen Paketen mit, lädt ffmpeg und bietet zwei optionale Teile an: Demucs für die Stimmen-Trennung (zieht PyTorch nach, bis ~2 GB — ohne läuft alles weiter, nur ohne Backing-Track) und die Spracherkennung für automatische Untertitel. Beides lässt sich später durch erneutes Ausführen des Setups nachinstallieren.
+Das Setup bringt sein eigenes Python mit allen Paketen mit, lädt ffmpeg und bietet zwei optionale Teile an: Demucs für die Stimmen-Trennung (zieht PyTorch nach, bis ~2 GB — ohne läuft alles weiter, nur ohne Backing-Track) und die Spracherkennung für automatische Untertitel. Außerdem lädt es `cloudflared` (ca. 55 MB, vorausgewählt), damit Freunde im Mehrspieler ohne Portfreigabe beitreten können. Alles lässt sich später durch erneutes Ausführen des Setups nachinstallieren.
 
 Danach **DubForge** zum Bauen und **DubStage** zum Einsprechen starten — aus dem Startmenü oder vom Desktop.
 
@@ -134,9 +134,13 @@ Beide Kurven teilen sich dieselbe Zeitachse, die bei Null des Clips beginnt. Dam
 
 Beide Kurven werden auf ihre eigene Lautstärke normiert, verglichen wird also Rhythmus und nicht Pegel. Ist deine Aufnahme zu leise, steht das als Hinweis rechts unten.
 
+Browser-Gäste im Koop-Spiel bekommen denselben Streifen.
+
 ## Mikrofon
 
 Im Menü gibt es **Testen**: zwei Sekunden aufnehmen, Pegel ablesen, Wiedergabe. Falls nichts ankommt, im Auswahlfeld daneben ein anderes Gerät nehmen.
+
+Standardmäßig nimmt DubStage das **Windows-Standard**-Mikrofon (erster Eintrag, mit dem Namen des Geräts). Gemerkt wird nur ein Mikrofon, das du selbst auswählst. Browser-Spieler wählen ihres in der Lobby oder unter den Aufnahmeknöpfen.
 
 ## Bildrate
 
@@ -152,9 +156,80 @@ Erlaubt sind 8 bis 30. Die Bilder werden beim nächsten Öffnen des Packs neu er
 
 ## Packs, die nicht auftauchen
 
-Gesucht wird im Ordner `packs` neben den Tools. Über **Ordner hinzufügen** lässt sich jeder weitere Ordner dauerhaft mit durchsuchen.
+Gesucht wird im Ordner `packs` neben den Tools. Über **Hinzufügen … → Ordner mit Packs** lässt sich jeder weitere Ordner dauerhaft mit durchsuchen. Gefunden werden Packs darin, eine Ebene tiefer (wie im Ordner eines entpackten Zips) oder der Ordner selbst, wenn er ein Pack ist.
+
+**Zip- und RAR-Packs** muss man nicht entpacken. Die `.zip` oder `.rar` nach `packs` oder in einen hinzugefügten Ordner legen oder direkt über **Hinzufügen … → Zip oder RAR** wählen. DubStage schaut hinein, entpackt Archive mit einem `dub_video` einmalig nach `packs\_archives` (im Hintergrund, das Menü zeigt es an) und listet sie wie jedes andere Pack. Andere Archive im selben Ordner (Programme, Shader …) bleiben unberührt. Liegt neben einem Zip ein gleichnamiger Ordner, gilt es als schon entpackt. RAR nutzt das `tar` von Windows 10/11; WinRAR oder 7-Zip gehen auch, falls installiert.
 
 Damit ein Ordner als Pack zählt, braucht er ein **`dub_video`** (mp4, ogv, mkv, webm, mov oder avi) und mindestens einen Clip mit Zeitstempel im Dateinamen.
+
+**Choicer-Voicer-Packs** laufen unverändert: den Download (z. B. `pennywise_vs_groot.zip`) nach `packs` legen oder das Zip bzw. seinen entpackten Ordner hinzufügen. DubStage liest Startzeiten, Figuren und Untertitel aus der `.txt` neben jedem Clip und den Titel aus `_pack_info.ini`. Im Mehrspieler verteilt *Automatisch aufteilen* ganze Figuren.
+
+---
+
+## Mit Freunden spielen (Koop)
+
+Eine Szene gemeinsam vertonen: Der Host verteilt die Zeilen, jeder nimmt seine
+Zeilen am eigenen Rechner auf, und jede Aufnahme geht automatisch an die
+anderen. Am Ende hat jeder die ganze Szene mit allen Stimmen.
+
+**Hosten:** Pack wählen → **Spiel hosten** → Namen eingeben. Die Lobby zeigt
+einen **Raumcode** und die Adresse(n) für deine Freunde. Wer beitritt, bekommt
+den Pack automatisch von dir, also nur Material teilen, das du teilen darfst.
+
+So erreichen dich deine Freunde, eins davon reicht:
+
+| Weg | Was zu tun ist |
+|---|---|
+| **Cloudflare Quick Tunnel** (am einfachsten) | Das Setup installiert `cloudflared` (sonst `winget install Cloudflare.cloudflared` oder `cloudflared.exe` nach `tools\` legen). Dann **Cloudflare Quick Tunnel starten** anhaken. Die `…trycloudflare.com`-Adresse schicken. Kein Router nötig. |
+| **VPN** (Tailscale, ZeroTier, Radmin VPN) | Alle im selben VPN; deine VPN-IP mit Port schicken, z. B. `100.64.1.2:47800`. |
+| **Portfreigabe** | TCP-Port 47800 (oder den gewählten) im Router auf deinen PC freigeben und deine öffentliche IP schicken, z. B. `203.0.113.5:47800`. |
+| **Gleiches Netz** | Die LAN-Adresse aus der Lobby schicken. |
+
+Fragt Windows, ob Python das Netzwerk nutzen darf: **Zulassen** klicken. Das
+braucht es für VPN, LAN und Portfreigabe. Der Tunnel geht auch ohne.
+
+**Beitreten:** **Beitreten** → Adresse einfügen, Raumcode und Namen eingeben.
+
+**Im Browser beitreten (ohne Installation):** Mit Tunnel zeigt die Lobby zusätzlich einen **Browser-Link**, in dem der Raumcode schon steckt. Freunde öffnen ihn in Chrome, Edge oder Firefox, geben einen Namen ein und erlauben das Mikrofon. Sie können ihre Zeilen mit demselben Vergleichsstreifen wie in der App aufnehmen, alle Aufnahmen anhören und das Finale ansehen (als Video speichern geht nur in der App). Die Seite füllt das ganze Fenster. Browser erlauben das Mikrofon nur über https – Browser-Gäste brauchen also den Tunnel-Link, reine IP-Adressen gehen nur mit der App. Beim ersten Hosten eines Packs wandelt DubStage dessen Video im Hintergrund in ein leichtes MP4 für Browser um.
+
+**Lobby:** Rechts steht, wer was spricht, nach Figuren gruppiert (der Name in
+den Clip-Dateinamen). Alle Rollen sind anfangs frei. Jeder, ob in der App oder
+im Browser, klickt eine freie Rolle an, um sie zu nehmen, und die eigene, um
+sie wieder abzugeben. Rollen anderer lassen sich nicht wegnehmen. Der Host hat
+das letzte Wort: Ein Klick reicht die Rolle reihum weiter (frei → jeder
+Spieler). **Automatisch aufteilen** verteilt nur die noch freien Rollen und
+lässt die gewählten in Ruhe. **Nach Zeilen** zeigt einzelne Zeilen. **Los
+geht's** geht, sobald alle den Pack haben. Danach steht die Verteilung fest;
+Zeilen, die niemand genommen hat, behalten die Originalstimme.
+
+**Aufnehmen:** Aufnehmen kannst du nur deine eigenen Zeilen. Die Leiste über
+dem Untertitel zeigt jede Zeile in der Farbe ihres Sprechers, hell, sobald sie
+aufgenommen ist. Fremde Zeilen kannst du anhören, sobald die Aufnahme da ist.
+Unten steht, wessen Zeilen noch fehlen. **Weiter** und **Zurück** springen
+zwischen deinen eigenen Zeilen; jede andere Zeile erreichst du per Klick in der
+Leiste. Der Host kann alle zurück in die **Lobby** holen und neu verteilen;
+Aufnahmen bleiben erhalten.
+
+**Hintergrund-Lautstärke:** Jeder Spieler hat einen Regler **Hintergrund**
+(0–150 %) auf der Bühne, im Warteraum und im Finale. Er regelt den Backing
+Track (Musik und Effekte; ohne Backing Track den Originalton des Videos) lauter
+oder leiser, während er läuft, auch beim Aufnehmen – und nur für dich: Andere
+Spieler und deine gesendeten Aufnahmen bleiben unberührt. Leiser vor dem
+Aufnehmen heißt weniger Hintergrund im Mikrofon. Als Video speichern nimmt
+deine Einstellung. App und Browser merken sie sich.
+
+**Bereit und das Finale:** Auf der letzten Zeile heißt der Knopf **Bereit ✓**.
+Er führt in einen Warteraum, der zeigt, wie weit alle sind (aufgenommene von
+den eigenen Zeilen, bereit oder nimmt noch auf). **Meine Zeilen abspielen**
+spielt deine Aufnahmen zum Video, **Zurück zu meinen Zeilen** nimmt das Bereit
+zurück, damit du alles nochmal aufnehmen kannst. Sind alle bereit, holt jeder
+alle Aufnahmen und das Finale mit der ganzen Szene öffnet sich. Ab dann sind
+die Aufnahmen fest, und jeder kann die Szene abspielen oder als Video
+speichern. Der Host hat **Jetzt fertigstellen**, falls jemand weg ist.
+
+Geht jemand in der Lobby, werden seine Rollen wieder frei; im laufenden Spiel
+übernimmt der Host. Beendet der Host, ist das
+Spiel für alle vorbei.
 
 ---
 

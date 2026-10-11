@@ -7,7 +7,64 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Multiplayer (co-op).** Host a game from DubStage and friends join with an
+  address and a room code. The host splits the lines by character (or line by
+  line, or with *Auto split*), everyone records their own lines, and takes are
+  exchanged automatically, so everyone's finale has all voices. The pack is
+  sent to guests automatically. Works over a Cloudflare quick tunnel
+  (`cloudflared`), a VPN, port forwarding or the local network. Plain HTTP
+  only, no new dependencies.
+  Roles start free: every player picks or gives back roles in the lobby
+  (app or browser), the host can override, and *Auto split* only fills
+  the roles nobody picked.
+  The finale waits for everyone: the last line's button is *Ready ✓*, a
+  waiting room shows everyone's progress, lets you replay your own lines or
+  go back and re-record, and once all are ready the full scene opens for
+  everyone. The host can finish early.
+- **Choicer Voicer packs play in DubStage.** Start times, characters and
+  captions come from each clip's `.txt` (multi-line captions included), the
+  title from `_pack_info.ini`; MP3 clips, `_backing_track.mp3` and
+  `dub_video.ogv` are used as they are. A clip listed at several timestamps
+  becomes several lines.
+- **Friends can join in the browser.** With a tunnel, the host's lobby shows a
+  browser link (room code included). Browser guests record their own lines,
+  hear everyone's takes and watch the finale, no install needed. The host
+  serves a muted, light MP4 of the video (converted once, cached), the clips
+  and the backing track, with range requests so the video can seek.
+- **Background volume slider in co-op.** Every player (app and browser) has
+  their own *Background* slider (0–150 %) on the stage, in the waiting room
+  and in the finale. It changes the backing track live while it plays, also
+  during recording, and only for that player. Saving the finale as a video
+  uses it.
+- **Browser guests get the comparison strip:** the original line as a
+  silhouette, their take on top, drawn live while recording.
+- **Zip and RAR packs.** Archives in `packs`, in an added folder, or picked
+  with *Add … → Zip or RAR* are checked for a `dub_video`, unpacked once into
+  `packs/_archives` in the background and listed like any pack. Other
+  archives are left alone. RAR uses Windows' built-in `tar` (WinRAR or 7-Zip
+  as fallback), so no new dependency.
+- **The setup installs `cloudflared`** for multiplayer tunnels: an optional
+  component of the installer (ticked in *Standard* and *Everything*) and an
+  optional step in `Setup.bat`. It lands in `tools\` next to ffmpeg.
+
+### Changed
+
+- **The microphone defaults to the Windows default** and only remembers one
+  you pick yourself. Browser players can pick their microphone too.
+- **In co-op, Next and Back jump between your own lines** (app and browser).
+  Other lines stay reachable through the line strip.
+- **The browser page fills the window** on the stage, waiting and finale
+  screens; the video takes the free height.
+
+### Fixed
+
+- **Long captions spilled out of their area.** They now shrink to fit and are
+  cut with "…" if they still don't fit (app and browser).
+- **Add folder found no packs** when the folder was a pack itself or held
+  it inside an unzipped wrapper folder (`pennywise_vs_groot/Pennywise vs
+  Groot`). Both are found now.
 
 ## [1.3.0] - 2026-09-28
 

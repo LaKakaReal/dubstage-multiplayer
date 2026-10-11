@@ -24,6 +24,7 @@ from tkinter import ttk, messagebox, filedialog
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import dubforge_core as pc
 import dubstage_core as ds
+import dubstage_net as net
 import updater as upd
 import appwin
 
@@ -87,9 +88,17 @@ T = {
     "with_back":  ("mit Backing", "with backing"),
     "no_back":    ("ohne Backing", "no backing"),
     "rescan":     ("Neu suchen", "Rescan"),
-    "add_folder": ("Ordner hinzufügen", "Add folder"),
+    "add_folder": ("Hinzufügen …", "Add …"),
+    "add_dir":    ("Ordner mit Packs …", "Folder with packs …"),
+    "add_archive": ("Zip oder RAR …", "Zip or RAR …"),
+    "unpacking":  ("Entpacke %d Archiv(e) …", "Unpacking %d archive(s) …"),
+    "unpack_fail": ("Konnte nicht entpackt werden:\n\n%s",
+                    "Could not be unpacked:\n\n%s"),
+    "no_pack_in": ("Kein Dub-Pack darin gefunden:\n\n%s",
+                   "No dub pack found inside:\n\n%s"),
     "mic":        ("Mikrofon", "Microphone"),
     "mic_test":   ("Testen", "Test"),
+    "mic_default": ("Windows-Standard (%s)", "Windows default (%s)"),
     "mic_run":    ("Sprich jetzt ...", "Speak now ..."),
     "mic_ok":     ("Pegel %.0f dB - passt", "Level %.0f dB - good"),
     "mic_low":    ("Pegel %.0f dB - zu leise", "Level %.0f dB - too quiet"),
@@ -138,8 +147,122 @@ T = {
     "err":        ("Fehler", "Error"),
     "quiet_hint": ("sehr leise - lauter sprechen", "very quiet - speak up"),
 
+    # --- Mehrspieler / multiplayer
+    "host":       ("Spiel hosten", "Host game"),
+    "join":       ("Beitreten", "Join game"),
+    "host_t":     ("Spiel hosten", "Host a game"),
+    "join_t":     ("Spiel beitreten", "Join a game"),
+    "your_name":  ("Dein Name", "Your name"),
+    "port":       ("Port", "Port"),
+    "address":    ("Adresse", "Address"),
+    "room_code":  ("Raumcode", "Room code"),
+    "cancel":     ("Abbrechen", "Cancel"),
+    "use_tunnel": ("Cloudflare Quick Tunnel starten",
+                   "Start a Cloudflare quick tunnel"),
+    "tunnel_ok":  ("Freunde treten dann über eine …trycloudflare.com-Adresse "
+                   "bei – ohne Portfreigabe.",
+                   "Friends then join via a …trycloudflare.com address – "
+                   "no port forwarding needed."),
+    "tunnel_missing": ("cloudflared nicht gefunden. Das Setup erneut "
+                       "ausführen (cloudflared anhaken) oder winget install "
+                       "Cloudflare.cloudflared, um ohne Portfreigabe zu "
+                       "spielen.",
+                       "cloudflared not found. Run the setup again (tick "
+                       "cloudflared) or winget install Cloudflare.cloudflared "
+                       "to play without port forwarding."),
+    "tunnel_fail": ("Der Cloudflare-Tunnel ließ sich nicht starten:\n%s\n\n"
+                    "Das Spiel läuft trotzdem – Freunde brauchen dann deine "
+                    "IP und eine Portfreigabe.",
+                    "The Cloudflare tunnel could not be started:\n%s\n\n"
+                    "The game runs anyway – friends then need your IP and "
+                    "a forwarded port."),
+    "bad_port":   ("Ungültiger Port.", "Invalid port."),
+    "need_addr":  ("Bitte Adresse und Raumcode eingeben.",
+                   "Please enter the address and room code."),
+    "net_connecting": ("Verbinde ...", "Connecting ..."),
+    "net_join_fail": ("Beitreten fehlgeschlagen", "Could not join"),
+    "lobby":      ("Lobby", "Lobby"),
+    "net_leave":  ("Verlassen", "Leave"),
+    "copy":       ("Kopieren", "Copy"),
+    "copied":     ("In die Zwischenablage kopiert", "Copied to clipboard"),
+    "share_addr": ("Schick deinen Freunden Adresse + Raumcode",
+                   "Send your friends an address + the room code"),
+    "joined_addr": ("Verbunden mit", "Connected to"),
+    "addr_tunnel": ("Cloudflare-Tunnel (für die App)",
+                    "Cloudflare tunnel (for the app)"),
+    "addr_browser": ("Browser-Link – ohne App, mit Raumcode",
+                     "Browser link – no app needed, code included"),
+    "addr_lan":   ("LAN / VPN (Tailscale, Radmin ...)",
+                   "LAN / VPN (Tailscale, Radmin ...)"),
+    "addr_inet":  ("Internet", "Internet"),
+    "addr_inet_v": ("deine öffentliche IP:%d – Port im Router freigeben",
+                    "your public IP:%d – forward the port in your router"),
+    "players":    ("Spieler", "Players"),
+    "you":        ("du", "you"),
+    "host_tag":   ("Host", "host"),
+    "st_ready":   ("bereit", "ready"),
+    "st_dl":      ("Pack %d%%", "pack %d%%"),
+    "st_prep":    ("bereitet vor", "preparing"),
+    "st_off":     ("offline", "offline"),
+    "roles":      ("Wer spricht was", "Who voices what"),
+    "roles_hint": ("Klicken: wer spricht die Rolle (auch frei)",
+                   "Click to change who voices it (or free it)"),
+    "roles_pick": ("Freie Rolle anklicken zum Nehmen, eigene zum Abgeben",
+                   "Click a free role to take it, click yours to give it back"),
+    "role_free":  ("frei", "free"),
+    "role_taken": ("Diese Rolle hat schon jemand.",
+                   "Someone already has that role."),
+    "ready_btn":  ("Bereit ✓", "Ready ✓"),
+    "wait_title": ("Warten auf die anderen", "Waiting for the others"),
+    "wait_sub":   ("Sobald alle bereit sind, wird die Szene zusammengesetzt.",
+                   "Once everyone is ready, the scene is put together."),
+    "lines_done": ("%d / %d Zeilen", "%d / %d lines"),
+    "st_done":    ("bereit ✓", "ready ✓"),
+    "st_working": ("nimmt noch auf", "still recording"),
+    "replay_mine": ("Meine Zeilen abspielen", "Replay my lines"),
+    "back_mine":  ("Zurück zu meinen Zeilen", "Back to my lines"),
+    "finish_now": ("Jetzt fertigstellen", "Finish now"),
+    "assembling": ("Szene wird zusammengesetzt ...",
+                   "Putting the scene together ..."),
+    "assembling_n": ("%d von %d Aufnahmen da", "%d of %d takes here"),
+    "no_takes_mine": ("Du hast noch nichts aufgenommen.",
+                      "You haven't recorded anything yet."),
+    "unassigned_n": ("%d Zeilen ohne Sprecher – dort bleibt das Original.",
+                     "%d lines have no one – they keep the original voice."),
+    "by_line":    ("Nach Zeilen", "By line"),
+    "by_char":    ("Nach Figuren", "By character"),
+    "dl_pack":    ("Pack wird geladen ...", "Downloading the pack ..."),
+    "auto_split": ("Automatisch aufteilen", "Auto split"),
+    "net_start":  ("Los geht's", "Start"),
+    "wait_ready": ("Warte, bis alle den Pack haben ...",
+                   "Waiting for everyone to get the pack ..."),
+    "can_start":  ("Alle bereit.", "Everyone is ready."),
+    "wait_host":  ("Warte auf den Host ...", "Waiting for the host to start ..."),
+    "voiced_by":  ("gesprochen von %s", "voiced by %s"),
+    "their_take": ("Aufnahme anhören", "Play take"),
+    "legend_their": ("Aufnahme von %s", "%s's take"),
+    "bg_vol":     ("Hintergrund", "Background"),
+    "net_yours_left": ("deine fehlen noch: %d", "yours left: %d"),
+    "net_waiting": ("warte auf %s", "waiting for %s"),
+    "net_unsent": ("%d noch nicht gesendet", "%d not sent yet"),
+    "net_trouble": ("Verbindung hakt – versuche es weiter ...",
+                    "Connection trouble – retrying ..."),
+    "net_lost_t": ("Verbindung verloren", "Connection lost"),
+    "net_closed": ("Der Host hat das Spiel beendet.",
+                   "The host ended the game."),
+    "net_leave_host_q": ("Spiel für alle beenden?",
+                         "End the game for everyone?"),
+    "net_leave_q": ("Spiel verlassen? Deine Aufnahmen bleiben beim Host.",
+                    "Leave the game? Your takes stay with the host."),
+    "net_new_takes": ("Neue Aufnahmen sind da – zurück zu den Zeilen und "
+                      "wieder 'Fertig', um sie zu hören.",
+                      "New takes arrived – go back to the lines and press "
+                      "Done again to hear them."),
+    "net_bad_pack": ("Der empfangene Pack ist unvollständig.",
+                     "The received pack is incomplete."),
+
     # --- Update
-    "upd_head":   ("Version %s ist da", "Version %s is out"),
+    "upd_head":  ("Version %s ist da", "Version %s is out"),
     "upd_sub":    ("Du hast %s", "You have %s"),
     "upd_more":   ("Was ist neu", "What's new"),
     "upd_less":   ("Zuklappen", "Collapse"),
@@ -274,6 +397,86 @@ class Button(object):
             self.refresh()
 
 
+class Slider(object):
+    """Selbstgezeichneter Schieberegler: Beschriftung, Spur, Prozentwert."""
+
+    def __init__(self, cv, x, y, w, label, value, lo, hi, on_change):
+        self.cv = cv
+        self.lo, self.hi = lo, hi
+        self.on_change = on_change
+        self.label = cv.create_text(x, y, anchor="w", text=label, fill=DIM,
+                                    font=("Segoe UI", 10))
+        lx1 = cv.bbox(self.label)[2]
+        self.x0, self.x1 = lx1 + 12, x + w - 46
+        self.y = y
+        self.box = (self.x0 - 8, y - 12, self.x1 + 8, y + 12)
+        cv.create_line(self.x0, y, self.x1, y, fill=PANEL_HI, width=4,
+                       capstyle="round")
+        self.fill = cv.create_line(self.x0, y, self.x0, y, fill=ACC, width=4,
+                                   capstyle="round")
+        self.knob = cv.create_oval(0, 0, 0, 0, fill=TXT, outline="")
+        self.text = cv.create_text(x + w, y, anchor="e", text="", fill=DIM,
+                                   font=("Consolas", 10))
+        self.set(value)
+
+    def set(self, value):
+        self.value = max(self.lo, min(self.hi, value))
+        f = (self.value - self.lo) / float(self.hi - self.lo)
+        kx = self.x0 + (self.x1 - self.x0) * f
+        self.cv.coords(self.fill, self.x0, self.y, kx, self.y)
+        self.cv.coords(self.knob, kx - 7, self.y - 7, kx + 7, self.y + 7)
+        self.cv.itemconfigure(self.text, text="%d%%" % round(self.value * 100))
+
+    def hit(self, x, y):
+        x0, y0, x1, y1 = self.box
+        return x0 <= x <= x1 and y0 <= y <= y1
+
+    def drag(self, x):
+        f = (x - self.x0) / float(max(1, self.x1 - self.x0))
+        v = self.lo + max(0.0, min(1.0, f)) * (self.hi - self.lo)
+        v = round(v / 0.05) * 0.05            # in 5-%-Schritten
+        if abs(v - 1.0) < 0.04:
+            v = 1.0                           # 100 % rastet ein
+        if v != self.value:
+            self.set(v)
+            self.on_change(self.value)
+
+
+# ==========================================================================
+class NetSession(object):
+    """Eine laufende Mehrspieler-Runde / one running multiplayer game."""
+
+    def __init__(self, client, server=None, room=None):
+        self.client = client
+        self.server = server          # nur beim Host
+        self.room = room              # nur beim Host
+        self.tunnel = None
+        self.tunnel_url = None
+        self.state = None             # letzter Stand vom Host
+        self.revs = {}                # Zeile -> Version der geholten Aufnahme
+        self.unsent = {}              # Zeile -> "put" | "del", noch offen
+        self.failed = set()           # gescheiterte Sendungen
+        self.fetching = set()
+        self.trouble = None           # Verbindung hakt gerade
+        self.want_done = False        # "Bereit" gedrueckt, ggf. noch senden
+
+    @property
+    def is_host(self):
+        return self.room is not None
+
+    @property
+    def me(self):
+        return self.client.player
+
+    def close(self):
+        self.client.stop_polling()
+        if self.is_host:
+            self.server.close()
+            net.stop_process(self.tunnel)
+        else:
+            self.client.leave()
+
+
 # ==========================================================================
 class Game(tk.Tk):
 
@@ -281,6 +484,9 @@ class Game(tk.Tk):
         super().__init__()
         appwin.set_icon(self, "DubStage")
         self.cfg = load_cfg()
+        # "mic" wurde frueher bei jedem Start ungefragt gespeichert (meist
+        # einfach das erste Geraet). Ab jetzt zaehlt nur "mic_choice".
+        self.cfg.pop("mic", None)
         set_lang(self.cfg.get("lang", "de"))
         self.title(t("title"))
         # Nicht groesser oeffnen als der Bildschirm hergibt - sonst liegt
@@ -296,6 +502,7 @@ class Game(tk.Tk):
         self.pack = None
         self.line_i = 0
         self.mix = None
+        self.mix_parts = None         # (Stimmen, Hintergrund) im Mehrspieler
         self.screen = "menu"
         self.phase = "idle"           # idle | listen | record | play
         self._phase_deadline = None
@@ -314,11 +521,19 @@ class Game(tk.Tk):
         self._embedded = []
         self.buttons = []
         self.chips = []
+        self.sliders = []
+        self._drag = None             # Regler, der gerade gezogen wird
+        self._fit_cache = {}          # Text-Item -> (Text, Hoehe) schon eingepasst
         self._thumbs = {}             # Vorschaubilder im Menue / menu thumbnails
         self._thumb_jobs = set()
         self._thumb_redraw = False
         self._logo_img = None
         self._loading = False
+        self._unpacking = 0           # Archive, die gerade entpackt werden
+        self.net = None               # NetSession im Mehrspieler
+        self.lobby_scroll = 0
+        self.lobby_by_line = False
+        self.lobby_rows = []
 
         self.upd_info = None          # gefundenes Release / found release
         self.upd_open = False         # Changelog aufgeklappt?
@@ -334,6 +549,8 @@ class Game(tk.Tk):
         self.cv.bind("<Configure>", self._on_resize)
         self.cv.bind("<Motion>", self._on_motion)
         self.cv.bind("<Button-1>", self._on_click)
+        self.cv.bind("<B1-Motion>", self._on_drag)
+        self.cv.bind("<ButtonRelease-1>", self._on_release)
         self.cv.bind("<MouseWheel>", self._on_wheel)
         self.bind("<Escape>", lambda e: self._on_escape())
         self.bind("<space>", lambda e: self._on_space())
@@ -384,6 +601,9 @@ class Game(tk.Tk):
         self._embedded = []
         self.buttons = []
         self.chips = []
+        self.sliders = []
+        self._drag = None
+        self._fit_cache = {}
         self.cv.delete("all")
         self._photo = None
 
@@ -404,6 +624,43 @@ class Game(tk.Tk):
                                 w / 2 + rw, h * (0.16 + 0.30 * f),
                                 fill=lerp_color(BG_TOP, "#2a2f55", 0.5 - f * 0.5),
                                 outline="")
+
+    def _fit_text(self, item, text, max_h, size=16, min_size=10,
+                  family="Segoe UI Semibold"):
+        """
+        Setzt den Text und verkleinert die Schrift, bis er in max_h passt.
+        Reicht auch die kleinste nicht, wird er mit "…" gekuerzt.
+        """
+        cv = self.cv
+        if self._fit_cache.get(item) == (text, max_h):
+            return                       # unveraendert, nichts zu messen
+        cv.itemconfigure(item, text=text)
+
+        def fits():
+            box = cv.bbox(item)
+            return box is None or box[3] - box[1] <= max_h
+
+        for s in range(size, min_size - 1, -1):
+            cv.itemconfigure(item, font=(family, s))
+            if fits():
+                break
+        else:
+            words = text.split()
+            while len(words) > 1 and not fits():
+                words.pop()
+                cv.itemconfigure(item, text=" ".join(words) + " …")
+        self._fit_cache[item] = (text, max_h)
+
+    def _clip_line(self, item, text, max_w):
+        """Kuerzt einzeiligen Text mit "…", bis er in max_w passt."""
+        cv = self.cv
+        cv.itemconfigure(item, text=text)
+        while len(text) > 1:
+            x0, _y0, x1, _y1 = cv.bbox(item)
+            if x1 - x0 <= max_w:
+                break
+            text = text[:-1]
+            cv.itemconfigure(item, text=text.rstrip() + "…")
 
     def _btn(self, *a, **kw):
         b = Button(self.cv, *a, **kw)
@@ -426,12 +683,23 @@ class Game(tk.Tk):
             self.build_stage()
         elif self.screen == "finale":
             self.build_finale()
+        elif self.screen == "lobby":
+            self.build_lobby()
+        elif self.screen == "waiting":
+            self.build_waiting()
+        elif self.screen == "assembling":
+            self.build_assembling()
 
     def _on_motion(self, e):
         for b in self.buttons:
             b.set_hover(b.enabled and b.hit(e.x, e.y))
 
     def _on_click(self, e):
+        for s in self.sliders:
+            if s.hit(e.x, e.y):
+                self._drag = s
+                s.drag(e.x)
+                return
         for b in self.buttons:
             if b.enabled and b.hit(e.x, e.y):
                 b.command()
@@ -447,8 +715,55 @@ class Game(tk.Tk):
                 if x0 <= e.x <= x1 and y0 - 8 <= e.y <= y1 + 8:
                     self.goto_line(i)
                     return
+        elif self.screen == "lobby":
+            for (x0, y0, x1, y1), files in self.lobby_rows:
+                if x0 <= e.x <= x1 and y0 <= e.y <= y1:
+                    self._lobby_cycle(files)
+                    return
+
+    def _on_drag(self, e):
+        if self._drag is not None:
+            self._drag.drag(e.x)
+
+    def _on_release(self, _e):
+        if self._drag is not None:
+            self._drag = None
+            save_cfg(self.cfg)
+
+    # ---------------------------------------- Hintergrund-Regler (Mehrspieler)
+    def _back_slider(self, right, y):
+        """Lautstaerke des Hintergrunds, rechtsbuendig bis x=right."""
+        if self.net is None:
+            return None
+        s = Slider(self.cv, right - 250, y, 250, t("bg_vol"),
+                   self.mic.back_gain, 0.0, 1.5, self._set_back_gain)
+        self.sliders.append(s)
+        return s
+
+    def _set_back_gain(self, value):
+        self.mic.back_gain = value
+        self.cfg["backing_vol"] = value
+
+    def _play_backed(self, audio, start, level):
+        """
+        Wie mic.play(_with_backing(...)), im Mehrspieler aber mit getrenntem
+        Hintergrund, damit der Regler live wirkt.
+        """
+        back = getattr(self.pack, "backing_audio", None)
+        audio = np.asarray(audio, dtype=np.float32)
+        if self.net is None or back is None or not len(audio):
+            self.mic.play(self._with_backing(audio, start, level))
+            return
+        seg = ds.fit_len(ds.slice_audio(back, start, len(audio) / float(ds.SR)),
+                         len(audio))
+        self.mic.play_mix(*ds.mix_parts(audio * 0.95, seg * level, 0.95))
 
     def _on_wheel(self, e):
+        if self.screen == "lobby":
+            self.lobby_scroll = max(0, self.lobby_scroll
+                                    + (-1 if e.delta > 0 else 1))
+            self.build_lobby()
+            return
         if self.screen != "menu":
             return
         step = -1 if e.delta > 0 else 1
@@ -466,8 +781,10 @@ class Game(tk.Tk):
     def _on_escape(self):
         if self.screen == "stage":
             self.leave_round()
-        elif self.screen == "finale":
+        elif self.screen == "finale" and not self.net:
             self.show_menu()
+        elif self.screen in ("lobby", "waiting", "assembling", "finale"):
+            self.leave_net()
 
     def _on_space(self):
         if self.screen == "stage" and self.phase == "idle":
@@ -479,13 +796,18 @@ class Game(tk.Tk):
     #  MENUE
     # ==================================================================
     def show_menu(self):
+        if self.net is not None:
+            self._net_close()
         self.screen = "menu"
         self._set_phase("idle")
         self._stop_audio()
         if not self._scanned:
             self._scanned = True
+            pending = []
             self.packs = ds.find_packs(
-                extra_dirs=self.cfg.get("extra_dirs") or [])
+                extra_dirs=self.cfg.get("extra_dirs") or [], pending=pending)
+            if pending:
+                self.after(10, lambda: self._unpack_archives(pending))
             self.sel_pack = min(self.sel_pack, max(0, len(self.packs) - 1))
         self._clear_canvas()
         self._backdrop()
@@ -587,17 +909,23 @@ class Game(tk.Tk):
                        font=("Segoe UI Semibold", 11))
         if self.mic.available:
             devs = self.mic.devices()
-            names = ["%d  %s" % (i, n) for i, n in devs]
+            self.mic_default = t("mic_default",
+                                 self.mic.default_name() or "?")
+            names = [self.mic_default] + ["%d  %s" % (i, n) for i, n in devs]
             # Beim Neuzeichnen (Fenstergroesse, Vorschaubilder) die gerade
-            # gewaehlte Quelle behalten, nicht auf die gespeicherte springen.
+            # gewaehlte Quelle behalten. Sonst die zuletzt bewusst gewaehlte -
+            # nach Namen, die Nummern koennen sich zwischen Starts aendern.
             old = getattr(self, "mic_var", None)
-            keep = old.get() if old is not None else self.cfg.get("mic")
-            self.mic_var = tk.StringVar(
-                value=keep if keep in names
-                else (names[0] if names else ""))
+            keep = old.get() if old is not None else None
+            if keep not in names:
+                chosen = self.cfg.get("mic_choice") or ""
+                keep = next((n for n in names[1:]
+                             if n.split(None, 1)[-1] == chosen), None)
+            self.mic_var = tk.StringVar(value=keep or self.mic_default)
             box = ttk.Combobox(self, textvariable=self.mic_var, width=44,
                                state="readonly", values=names,
                                style="Mic.TCombobox")
+            box.bind("<<ComboboxSelected>>", self._mic_chosen)
             self._embedded.append(box)
             cv.create_window(200, my + 33, window=box, anchor="w")
             self._btn(w - 250, my + 17, 100, 32, t("mic_test"),
@@ -613,12 +941,23 @@ class Game(tk.Tk):
         # ---- untere Knopfleiste
         by = h - 78
         self._btn(70, by, 140, 44, t("rescan"), self.scan_packs, "ghost")
-        self._btn(222, by, 176, 44, t("add_folder"), self.add_folder, "ghost")
+        self.b_add = self._btn(222, by, 176, 44, t("add_folder"),
+                               self.add_folder, "ghost")
         start = self._btn(w - 250, by, 180, 44, t("start"), self.start_round,
                           "go", font=("Segoe UI Semibold", 13))
-        start.set_enabled(bool(self.packs) and self.mic.available and HAVE_PIL)
-        self.status_item = cv.create_text(w / 2, by + 22, text="", fill=DIM,
+        playable = self.mic.available and HAVE_PIL
+        start.set_enabled(bool(self.packs) and playable)
+        host = self._btn(w - 412, by, 150, 44, t("host"), self.host_game,
+                         "primary")
+        host.set_enabled(bool(self.packs) and playable)
+        join = self._btn(w - 574, by, 150, 44, t("join"), self.join_game,
+                         "ghost")
+        join.set_enabled(playable)
+        self.status_item = cv.create_text(w / 2, by - 14, text="", fill=DIM,
                                           font=("Segoe UI", 10))
+        if self._unpacking:
+            cv.itemconfigure(self.status_item, fill=GOLD,
+                             text=t("unpacking", self._unpacking))
 
     # ==================================================================
     #  UPDATE
@@ -831,16 +1170,86 @@ class Game(tk.Tk):
         return photo
 
     def add_folder(self):
-        d = filedialog.askdirectory(title=t("add_folder"))
-        if not d:
-            return
+        """Kleines Menue: Ordner mit Packs oder ein Zip/RAR."""
+        m = tk.Menu(self, tearoff=0, bg=PANEL_HI, fg=TXT, bd=0,
+                    activebackground=ACC, activeforeground="#ffffff",
+                    font=("Segoe UI", 10))
+        m.add_command(label=t("add_dir"), command=self._add_dir)
+        m.add_command(label=t("add_archive"), command=self._add_archive)
+        x0, y0, _x1, _y1 = self.b_add.box
+        try:
+            m.tk_popup(self.cv.winfo_rootx() + int(x0),
+                       self.cv.winfo_rooty() + int(y0) - 58)
+        finally:
+            m.grab_release()
+
+    def _add_source(self, path):
         extra = self.cfg.get("extra_dirs") or []
-        if d not in extra:
-            extra.append(d)
+        if path not in extra:
+            extra.append(path)
         self.cfg["extra_dirs"] = extra
         save_cfg(self.cfg)
         self._scanned = False
         self.show_menu()
+
+    def _add_dir(self):
+        d = filedialog.askdirectory(title=t("add_dir"))
+        if d:
+            self._add_source(d)
+
+    def _add_archive(self):
+        f = filedialog.askopenfilename(
+            title=t("add_archive"),
+            filetypes=[("Zip / RAR", "*.zip *.rar"), ("*", "*.*")])
+        if f:
+            self._add_source(f)
+
+    def _unpack_archives(self, paths):
+        """Zips/RARs im Hintergrund pruefen und entpacken, dann neu suchen."""
+        if self._unpacking:
+            return
+        self._unpacking = len(paths)
+        if self.screen == "menu":
+            self.cv.itemconfigure(self.status_item, fill=GOLD,
+                                  text=t("unpacking", len(paths)))
+        result = {"new": 0, "failed": [], "empty": []}
+
+        def work():
+            for p in paths:
+                target = ds.archive_target(p)
+                if not ds.archive_has_pack(p):
+                    ds.NOT_PACKS.add(target)
+                    result["empty"].append(p)
+                    continue
+                try:
+                    ds.extract_archive(p)
+                    result["new"] += 1
+                except Exception as ex:
+                    traceback.print_exc()
+                    ds.NOT_PACKS.add(target)     # nicht bei jedem Menue erneut
+                    result["failed"].append("%s: %s" % (
+                        os.path.basename(p), str(ex).strip()[:200]))
+
+        def done():
+            self._unpacking = 0
+            chosen = [os.path.normpath(x)
+                      for x in self.cfg.get("extra_dirs") or []]
+            # Nur selbst gewaehlte Archive ohne Pack melden - fremde Zips in
+            # einem Ordner (Downloads) gehen uns nichts an.
+            empty = [os.path.basename(p) for p in result["empty"]
+                     if os.path.normpath(p) in chosen]
+            if self.screen == "menu":
+                self._scanned = not result["new"]
+                self.show_menu()
+            elif result["new"]:
+                self._scanned = False
+            if result["failed"]:
+                messagebox.showwarning(t("title"), t(
+                    "unpack_fail", "\n".join(result["failed"])))
+            if empty:
+                messagebox.showinfo(t("title"),
+                                    t("no_pack_in", "\n".join(empty)))
+        self._run_bg(work, done)
 
     def test_mic(self):
         if not self.mic.available or self._busy:
@@ -871,10 +1280,17 @@ class Game(tk.Tk):
             self.cv.itemconfigure(self.mic_msg, text=t("mic_ok", lvl),
                                   fill=TEAL)
             self.mic.play(ds.normalize(data, 0.9))
-        self.cfg["mic"] = self.mic_var.get()
+
+    def _mic_chosen(self, _e=None):
+        """Nur eine bewusste Auswahl wird gemerkt; Standard = leer."""
+        val = self.mic_var.get()
+        self.cfg["mic_choice"] = ("" if val == getattr(self, "mic_default",
+                                                       None)
+                                  else val.split(None, 1)[-1])
         save_cfg(self.cfg)
 
     def _mic_device(self):
+        """None = Standard-Mikrofon von Windows."""
         try:
             return int(self.mic_var.get().split()[0])
         except Exception:
@@ -893,29 +1309,36 @@ class Game(tk.Tk):
             messagebox.showerror(t("err"), t("no_pil"))
             return
         self.pack = self.packs[self.sel_pack]
-        self.cfg["mic"] = self.mic_var.get()
-        save_cfg(self.cfg)
         self.cv.itemconfigure(self.status_item, text=t("loading"), fill=GOLD)
         for b in self.buttons:
             b.set_enabled(False)
         self._loading = True          # kein Neuzeichnen des Menues dazwischen
         self.update_idletasks()
 
-        fps = int(self.cfg.get("video_fps") or ds.FRAME_FPS)
+        pack = self.pack
 
         def work():
-            ds.load_pack_audio(self.pack)
-            ds.extract_frames(self.pack, fps=max(8, min(30, fps)))
+            self._prepare_pack(pack)
 
         def done():
             self._loading = False
-            for l in self.pack.lines:
-                l.take = None
-            self.line_i = 0
-            self._imgcache = {}
-            self._probe_frame_size()
+            self._use_pack(pack)
             self.build_stage()
         self._run_bg(work, done)
+
+    def _prepare_pack(self, pack):
+        """Laeuft im Hintergrund: Ton laden, Einzelbilder erzeugen."""
+        fps = int(self.cfg.get("video_fps") or ds.FRAME_FPS)
+        ds.load_pack_audio(pack)
+        ds.extract_frames(pack, fps=max(8, min(30, fps)))
+
+    def _use_pack(self, pack):
+        self.pack = pack
+        for l in pack.lines:
+            l.take = None
+        self.line_i = 0
+        self._imgcache = {}
+        self._probe_frame_size()
 
     # ==================================================================
     #  BUEHNE
@@ -929,13 +1352,23 @@ class Game(tk.Tk):
         pad = 34
 
         # Kopfzeile
-        self._btn(pad, 24, 110, 38, "‹  " + t("menu"), self.leave_round,
-                  "flat", font=("Segoe UI", 11))
-        cv.create_text(w / 2, 43, text=self.pack.name, fill=TXT,
-                       font=("Segoe UI Semibold", 15))
+        self._btn(pad, 24, 110, 38,
+                  "‹  " + (t("net_leave") if self.net else t("menu")),
+                  self.leave_round, "flat", font=("Segoe UI", 11))
+        if self.net and self.net.is_host:
+            self._btn(pad + 120, 24, 110, 38, t("lobby"),
+                      self.net.room.back_to_lobby, "flat",
+                      font=("Segoe UI", 11))
+        title = cv.create_text(w / 2, 43, text=self.pack.name, fill=TXT,
+                               font=("Segoe UI Semibold", 15))
         self.hdr_count = cv.create_text(w - pad, 43, anchor="e", text="",
                                         fill=DIM,
                                         font=("Segoe UI Semibold", 12))
+        if self._back_slider(w - pad - 120, 43):
+            # Titel darf weder Knoepfe links noch den Regler rechts beruehren
+            left = pad + (240 if self.net.is_host else 120)
+            self._clip_line(title, self.pack.name,
+                            2 * min(w / 2 - left, w - pad - 390 - w / 2) - 24)
 
         # Videoflaeche
         top = 82
@@ -964,6 +1397,7 @@ class Game(tk.Tk):
 
         # Untertitel - das, was gesprochen werden soll
         cy = ty + 28
+        self.caption_h = 46          # bis knapp ueber den Zeilennamen
         self.caption_item = cv.create_text(
             vx + vw / 2, cy, anchor="n", text="", fill=GOLD,
             font=("Segoe UI Semibold", 16), width=vw - 40, justify="center")
@@ -1061,48 +1495,79 @@ class Game(tk.Tk):
         n = len(self.pack.lines)
         busy = self.phase != "idle"
         has_take = line is not None and line.take is not None and len(line.take)
-        last = self.line_i >= n - 1
+        mine = self._net_mine(line)
+        if self.net:
+            last = self._own_step(1) is None
+            has_prev = self._own_step(-1) is not None
+        else:
+            last = self.line_i >= n - 1
+            has_prev = self.line_i > 0
 
         # --- Knopfzustaende zuerst: die duerfen nie von der Anzeige abhaengen.
         # Aufnehmen ist auf jeder Zeile moeglich, auch auf der letzten.
         self.b_orig.set_enabled(not busy)
-        self.b_rec.set_enabled(not busy and line is not None)
+        self.b_rec.set_enabled(not busy and line is not None and mine)
         self.b_rec.set_text("●  " + (t("rec_again") if has_take else t("rec")))
         self.b_take.set_enabled(not busy and bool(has_take))
-        self.b_prev.set_enabled(not busy and self.line_i > 0)
-        self.b_skip.set_enabled(not busy and bool(has_take))
+        self.b_take.set_text("▶  " + (t("play_take") if mine
+                                      else t("their_take")))
+        self.b_prev.set_enabled(not busy and has_prev)
+        self.b_skip.set_enabled(not busy and bool(has_take) and mine)
         self.b_next.set_enabled(not busy)
-        self.b_next.set_text((t("finish") if last else t("next")) + "  ›")
+        if last and self.net:
+            self.b_next.set_text(t("ready_btn"))
+        else:
+            self.b_next.set_text((t("finish") if last else t("next")) + "  ›")
 
         # --- ab hier nur noch Kosmetik
         try:
             self.cv.itemconfigure(self.hdr_count,
                                   text=t("line_of", self.line_i + 1, n))
             if line is not None:
-                self.cv.itemconfigure(self.line_title, text=line.name)
+                self.cv.itemconfigure(self.line_title, text=line.name,
+                                      fill=DIM)
+                if self.net:
+                    p = self._net_player(self._net_owner(line)) or \
+                        {"name": t("role_free")}
+                    self.cv.itemconfigure(
+                        self.line_title, fill=p.get("color", DIM),
+                        text="%s   ·   %s" % (
+                            line.name, t("voiced_by", p.get("name", "?"))))
+                    self.cv.itemconfigure(
+                        self.legend_take,
+                        text=t("legend_take") if mine
+                        else t("legend_their", p.get("name", "?")))
                 self.cv.itemconfigure(
                     self.line_time,
                     text="%s  –  %s" % (pc.fmt_time(line.start)[:-2],
                                         pc.fmt_time(line.end)[:-2]))
-                self.cv.itemconfigure(
-                    self.caption_item,
-                    text=line.caption or "",
-                    fill=GOLD if line.caption else DIM)
+                self.cv.itemconfigure(self.caption_item,
+                                      fill=GOLD if line.caption else DIM)
+                self._fit_text(self.caption_item, line.caption or "",
+                               self.caption_h)
             for i, l in enumerate(self.pack.lines):
                 if i >= len(self.chip_items):
                     break
+                recorded = l.take is not None and len(l.take)
                 if i == self.line_i:
                     col = GOLD
-                elif l.take is not None and len(l.take):
+                elif self.net:
+                    p = self._net_player(self._net_owner(l)) or {}
+                    owner_col = p.get("color", TEAL)
+                    col = (owner_col if recorded
+                           else lerp_color(PANEL_HI, owner_col, 0.3))
+                elif recorded:
                     col = TEAL
                 else:
                     col = PANEL_HI
                 self.cv.itemconfigure(self.chip_items[i], fill=col)
             done = sum(1 for l in self.pack.lines
                        if l.take is not None and len(l.take))
-            self.cv.itemconfigure(
-                self.hint_item,
-                text=t("recorded_n", done, n) if done else t("hint"))
+            if self.net:
+                hint = self._net_hint()
+            else:
+                hint = t("recorded_n", done, n) if done else t("hint")
+            self.cv.itemconfigure(self.hint_item, text=hint)
             self._refresh_strip()
             if not busy and line is not None:
                 self.show_frame(line.start)
@@ -1451,7 +1916,7 @@ class Game(tk.Tk):
         self._set_phase("listen", line.duration)
         self.sync()
         try:
-            self.mic.play(self._with_backing(line.audio, line.start, 0.6))
+            self._play_backed(line.audio, line.start, 0.6)
         except Exception:
             traceback.print_exc()
             self._force_idle()
@@ -1466,7 +1931,7 @@ class Game(tk.Tk):
         self._set_phase("listen", dur)
         self.sync()
         try:
-            self.mic.play(self._with_backing(line.take, line.start, 0.5))
+            self._play_backed(line.take, line.start, 0.5)
         except Exception:
             traceback.print_exc()
             self._force_idle()
@@ -1480,7 +1945,7 @@ class Game(tk.Tk):
 
     def do_record(self):
         line = self.current_line()
-        if line is None or self.phase != "idle":
+        if line is None or self.phase != "idle" or not self._net_mine(line):
             return
         self._set_phase("countdown", 3.0)
         self.sync()
@@ -1516,7 +1981,8 @@ class Game(tk.Tk):
         if getattr(self.pack, "backing_audio", None) is not None:
             playback = ds.slice_audio(self.pack.backing_audio, line.start, dur)
         try:
-            self.mic.start(playback=playback, device=self._mic_device())
+            self.mic.start(playback=playback, device=self._mic_device(),
+                           mix=self.net is not None)
         except Exception as ex:
             self._force_idle()
             messagebox.showerror(t("err"), str(ex))
@@ -1552,6 +2018,8 @@ class Game(tk.Tk):
         line = self.current_line()
         if line is not None and data is not None and len(data):
             line.take = data
+            if self.net:
+                self._net_send(line)
         self._play = None
         self._set_phase("idle")
         try:
@@ -1562,9 +2030,11 @@ class Game(tk.Tk):
 
     def clear_take(self):
         line = self.current_line()
-        if line is None or self.phase != "idle":
+        if line is None or self.phase != "idle" or not self._net_mine(line):
             return
         line.take = None
+        if self.net:
+            self._net_send(line)
         self.sync()
 
     def goto_line(self, index):
@@ -1574,19 +2044,48 @@ class Game(tk.Tk):
         self._stop_audio()
         self.sync()
 
+    def _own_step(self, step):
+        """Naechste/vorige eigene Zeile ab der aktuellen, sonst None."""
+        i = self.line_i + step
+        while 0 <= i < len(self.pack.lines):
+            if self._net_mine(self.pack.lines[i]):
+                return i
+            i += step
+        return None
+
     def prev_line(self):
-        if self.phase == "idle" and self.line_i > 0:
+        if self.phase != "idle":
+            return
+        if self.net:
+            # Im Mehrspieler nur die eigenen Zeilen - fremde per Leiste
+            i = self._own_step(-1)
+            if i is not None:
+                self.goto_line(i)
+        elif self.line_i > 0:
             self.goto_line(self.line_i - 1)
 
     def next_line(self):
         if self.phase != "idle":
             return
+        if self.net:
+            i = self._own_step(1)
+            if i is None:
+                self.net_ready()
+            else:
+                self.goto_line(i)
+            return
         if self.line_i >= len(self.pack.lines) - 1:
-            self.build_finale()
+            if self.net:
+                self.net_ready()
+            else:
+                self.build_finale()
             return
         self.goto_line(self.line_i + 1)
 
     def leave_round(self):
+        if self.net:
+            self.leave_net()
+            return
         if messagebox.askyesno(t("title"), t("leave_q")):
             self._stop_audio()
             self._set_phase("idle")
@@ -1599,7 +2098,12 @@ class Game(tk.Tk):
         self._set_phase("idle")
         self._stop_audio()
         try:
-            mix = ds.render_dub(self.pack)
+            if self.net:
+                # Stimmen und Hintergrund getrennt - fuer den Regler
+                parts = ds.mix_parts(*ds.render_dub_parts(self.pack))
+                mix = ds.normalize(parts[0] + parts[1], 0.97)
+            else:
+                parts, mix = None, ds.render_dub(self.pack)
         except Exception as ex:
             # z.B. Video ohne Tonspur und kein Backing Track - dann auf der
             # Buehne bleiben, statt mit halb gezeichnetem Finale zu haengen.
@@ -1608,16 +2112,23 @@ class Game(tk.Tk):
             return
         self.screen = "finale"
         self.mix = mix
+        self.mix_parts = parts
         self._clear_canvas()
         self._backdrop()
         cv = self.cv
         w, h = self.size()
         pad = 34
 
-        self._btn(pad, 24, 150, 38, "‹  " + t("back_edit"),
-                  self.back_to_stage, "flat", font=("Segoe UI", 11))
+        if self.net:
+            # Im Mehrspieler ist das Finale endgueltig - nur noch verlassen.
+            self._btn(pad, 24, 130, 38, "‹  " + t("net_leave"),
+                      self.leave_net, "flat", font=("Segoe UI", 11))
+        else:
+            self._btn(pad, 24, 150, 38, "‹  " + t("back_edit"),
+                      self.back_to_stage, "flat", font=("Segoe UI", 11))
         cv.create_text(w / 2, 46, text=t("finale"), fill=TXT,
                        font=("Segoe UI Black", 26))
+        self._back_slider(w - pad, 43)
         done = sum(1 for l in self.pack.lines
                    if l.take is not None and len(l.take))
         cv.create_text(w / 2, 76, fill=DIM, font=("Segoe UI", 11),
@@ -1644,6 +2155,7 @@ class Game(tk.Tk):
         self.fin_caption = cv.create_text(
             vx + vw / 2, cy, anchor="n", text="", fill=GOLD,
             font=("Segoe UI Semibold", 16), width=vw - 40, justify="center")
+        self.fin_caption_h = 48
 
         py = cy + 56
         round_rect(cv, vx, py, vx + vw, py + 8, r=4, fill=PANEL_HI,
@@ -1683,7 +2195,10 @@ class Game(tk.Tk):
             return
         self._set_phase("play", len(self.mix) / float(ds.SR))
         self.b_play.set_text("■  " + t("stop"))
-        self.mic.play(self.mix)
+        if self.mix_parts is not None:
+            self.mic.play_mix(*self.mix_parts)
+        else:
+            self.mic.play(self.mix)
         self._play_from(0.0, len(self.mix) / float(ds.SR), self._finale_stop)
         self._finale_progress()
 
@@ -1705,8 +2220,8 @@ class Game(tk.Tk):
         f = min(1.0, elapsed / max(0.01, self._play["dur"]))
         try:
             self.cv.coords(self.prog_item, vx, py, vx + vw * f, py + 8)
-            self.cv.itemconfigure(self.fin_caption,
-                                  text=self._caption_at(elapsed))
+            self._fit_text(self.fin_caption, self._caption_at(elapsed),
+                           self.fin_caption_h)
         except Exception:
             traceback.print_exc()
         self.after(80, self._finale_progress)
@@ -1718,7 +2233,7 @@ class Game(tk.Tk):
             self.b_play.set_text("▶  " + t("play_all"))
             vx, py, _vw = self.prog_geo
             self.cv.coords(self.prog_item, vx, py, vx, py + 8)
-            self.cv.itemconfigure(self.fin_caption, text="")
+            self._fit_text(self.fin_caption, "", self.fin_caption_h)
 
     def export(self):
         os.makedirs(OUT_DIR, exist_ok=True)
@@ -1733,8 +2248,14 @@ class Game(tk.Tk):
         self.cv.itemconfigure(self.fin_msg, text=t("saving"), fill=GOLD)
         self.update_idletasks()
 
+        mix = self.mix
+        if self.mix_parts is not None:
+            # Export mit dem eingestellten Hintergrund
+            v, b = self.mix_parts
+            mix = ds.normalize(v + b * self.mic.back_gain, 0.97)
+
         def work():
-            ds.export_dub_video(self.pack, self.mix, path)
+            ds.export_dub_video(self.pack, mix, path)
 
         def done():
             self.b_save.set_enabled(True)
@@ -1749,6 +2270,936 @@ class Game(tk.Tk):
                 self.cv.itemconfigure(self.fin_msg, text="", fill=DIM)
             messagebox.showerror(t("err"), msg)
         self._run_bg(work, done, on_error=failed)
+
+    # ==================================================================
+    #  MEHRSPIELER / MULTIPLAYER
+    # ==================================================================
+    def _ask(self, title, fields, check=None):
+        """
+        Kleiner modaler Dialog. fields: [(key, label, default)],
+        check: (key, label, value, enabled, note). Gibt dict oder None.
+        """
+        win = tk.Toplevel(self)
+        win.title(title)
+        win.configure(bg=PANEL)
+        win.transient(self)
+        win.resizable(False, False)
+        frm = tk.Frame(win, bg=PANEL, padx=24, pady=20)
+        frm.pack(fill="both", expand=True)
+        values = {}
+        entries = []
+        for r, (key, label, default) in enumerate(fields):
+            tk.Label(frm, text=label, bg=PANEL, fg=DIM,
+                     font=("Segoe UI", 10)).grid(row=r, column=0, sticky="w",
+                                                 pady=5, padx=(0, 14))
+            var = tk.StringVar(value=default)
+            ent = tk.Entry(frm, textvariable=var, width=38, bg=PANEL_HI,
+                           fg=TXT, insertbackground=TXT, relief="flat",
+                           font=("Segoe UI", 11), highlightthickness=1,
+                           highlightbackground=EDGE, highlightcolor=ACC)
+            ent.grid(row=r, column=1, sticky="we", pady=5, ipady=4)
+            values[key] = var
+            entries.append((ent, default))
+        # Fokus ins erste leere Feld, sonst ins erste
+        targets = [e for e, d in entries if not d] or [e for e, _d in entries]
+        if targets:
+            targets[0].focus_set()
+        row = len(fields)
+        if check:
+            key, label, value, enabled, note = check
+            var = tk.BooleanVar(value=value)
+            tk.Checkbutton(frm, text=label, variable=var, bg=PANEL, fg=TXT,
+                           selectcolor=PANEL_HI, activebackground=PANEL,
+                           activeforeground=TXT, disabledforeground=DIM,
+                           font=("Segoe UI", 10),
+                           state="normal" if enabled else "disabled"
+                           ).grid(row=row, column=0, columnspan=2,
+                                  sticky="w", pady=(10, 0))
+            row += 1
+            if note:
+                tk.Label(frm, text=note, bg=PANEL, fg=DIM, justify="left",
+                         font=("Segoe UI", 9), wraplength=440
+                         ).grid(row=row, column=0, columnspan=2, sticky="w")
+                row += 1
+            values[key] = var
+        result = {}
+
+        def ok(_e=None):
+            result.update((k, v.get()) for k, v in values.items())
+            win.destroy()
+
+        bar = tk.Frame(frm, bg=PANEL)
+        bar.grid(row=row, column=0, columnspan=2, sticky="e", pady=(18, 0))
+        style = dict(relief="flat", font=("Segoe UI Semibold", 10), padx=16,
+                     pady=6, cursor="hand2", bd=0)
+        tk.Button(bar, text=t("cancel"), command=win.destroy, bg=PANEL_HI,
+                  fg=TXT, activebackground=EDGE, activeforeground=TXT,
+                  **style).pack(side="right", padx=(8, 0))
+        tk.Button(bar, text="OK", command=ok, bg=ACC, fg="#ffffff",
+                  activebackground=ACC_HI, activeforeground="#ffffff",
+                  **style).pack(side="right")
+        win.bind("<Return>", ok)
+        win.bind("<Escape>", lambda _e: win.destroy())
+        win.update_idletasks()
+        x = self.winfo_rootx() + (self.winfo_width() - win.winfo_width()) // 2
+        y = self.winfo_rooty() + (self.winfo_height() - win.winfo_height()) // 3
+        win.geometry("+%d+%d" % (max(0, x), max(0, y)))
+        try:
+            win.grab_set()
+        except tk.TclError:
+            pass
+        self.wait_window(win)
+        return result or None
+
+    def _menu_busy(self, text):
+        self.cv.itemconfigure(self.status_item, text=text, fill=GOLD)
+        for b in self.buttons:
+            b.set_enabled(False)
+        self._loading = True
+        self.update_idletasks()
+
+    # ---------------------------------------------------------- Hosten
+    def host_game(self):
+        if not self.packs or not self.mic.available or not HAVE_PIL:
+            return
+        have_cf = bool(net.find_cloudflared())
+        res = self._ask(t("host_t"), [
+            ("name", t("your_name"), self.cfg.get("net_name") or ""),
+            ("port", t("port"),
+             str(self.cfg.get("net_port") or net.DEFAULT_PORT)),
+        ], check=("tunnel", t("use_tunnel"),
+                  have_cf and self.cfg.get("net_tunnel", True), have_cf,
+                  t("tunnel_ok") if have_cf else t("tunnel_missing")))
+        if not res:
+            return
+        try:
+            port = int(res["port"])
+            if not 1 <= port <= 65535:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror(t("err"), t("bad_port"))
+            return
+        name = res["name"].strip() or "Host"
+        self.cfg.update(net_name=name, net_port=port)
+        if have_cf:
+            self.cfg["net_tunnel"] = bool(res["tunnel"])
+        save_cfg(self.cfg)
+        pack = self.packs[self.sel_pack]
+        want_tunnel = have_cf and res["tunnel"]
+        self._menu_busy(t("loading"))
+        got = {}
+
+        def work():
+            self._prepare_pack(pack)
+            room = net.Room(pack)
+            server = net.Server(room, port)
+            try:
+                room.pack_zip()          # vorab, damit Gaeste nicht warten
+                room.prepare_web_video()  # MP4 fuer Browser, im Hintergrund
+            except Exception:
+                server.close()
+                raise
+            got.update(room=room, server=server)
+            if want_tunnel:
+                try:
+                    got["tunnel"], got["url"] = net.start_quick_tunnel(
+                        server.port)
+                except Exception as ex:
+                    got["tunnel_err"] = str(ex)
+
+        def done():
+            self._loading = False
+            room, server = got["room"], got["server"]
+            client = net.Client("127.0.0.1:%d" % server.port, room.code)
+            client.player, client.token = room.join(name, host=True)
+            s = NetSession(client, server, room)
+            s.tunnel, s.tunnel_url = got.get("tunnel"), got.get("url")
+            s.state = room.snapshot()
+            client.version = s.state["version"]
+            self._use_pack(pack)
+            self._net_begin(s)
+            self.build_lobby()
+            if got.get("tunnel_err"):
+                messagebox.showwarning(t("title"),
+                                       t("tunnel_fail", got["tunnel_err"]))
+
+        def failed(msg):
+            self._loading = False
+            self.show_menu()
+            messagebox.showerror(t("err"), msg)
+        self._run_bg(work, done, on_error=failed)
+
+    # -------------------------------------------------------- Beitreten
+    def join_game(self):
+        if not self.mic.available or not HAVE_PIL:
+            return
+        res = self._ask(t("join_t"), [
+            ("addr", t("address"), self.cfg.get("net_addr") or ""),
+            ("code", t("room_code"), ""),
+            ("name", t("your_name"), self.cfg.get("net_name") or ""),
+        ])
+        if not res:
+            return
+        addr, code = res["addr"].strip(), res["code"].strip()
+        if not addr or not code:
+            messagebox.showerror(t("err"), t("need_addr"))
+            return
+        name = res["name"].strip() or "Player"
+        self.cfg.update(net_addr=addr, net_name=name)
+        save_cfg(self.cfg)
+        self._menu_busy(t("net_connecting"))
+        got = {}
+
+        def work():
+            client = net.Client(addr, code)
+            got["state"] = client.join(name)
+            got["client"] = client
+
+        def done():
+            self._loading = False
+            s = NetSession(got["client"])
+            s.state = got["state"]
+            s.client.version = s.state["version"]
+            self.pack = None
+            self._net_begin(s)
+            self.build_lobby()
+            self._net_fetch_pack()
+
+        def failed(msg):
+            self._loading = False
+            self.show_menu()
+            messagebox.showerror(t("net_join_fail"), msg)
+        self._run_bg(work, done, on_error=failed)
+
+    def _net_fetch_pack(self):
+        """Gast: Pack holen (falls noetig), laden, dann 'bereit' melden."""
+        s = self.net
+        got = {}
+
+        def progress(f):
+            try:
+                s.client.set_status(progress=f)
+            except Exception:
+                pass
+
+        def work():
+            folder = s.client.download_pack(s.state, progress)
+            pack = ds.load_pack(folder)
+            if pack is None:
+                raise net.NetError(t("net_bad_pack"))
+            pack.name = s.state["pack"]["name"]   # ohne Hash-Anhang
+            self._prepare_pack(pack)
+            got["pack"] = pack
+
+        def done():
+            if self.net is not s:
+                return
+            self._use_pack(got["pack"])
+            self._net_bg(lambda: s.client.set_status(ready=True,
+                                                     progress=1.0))
+            self._net_apply_takes()
+            self._net_follow_phase()
+            if self.screen == "lobby":
+                self.build_lobby()
+
+        def failed(msg):
+            if self.net is not s:
+                return
+            self.show_menu()
+            messagebox.showerror(t("err"), msg)
+        self._run_bg(work, done, on_error=failed)
+
+    # ------------------------------------------------- Sitzung steuern
+    def _net_bg(self, fn):
+        """Netzaufruf ohne Rueckmeldung im Hintergrund."""
+        def run():
+            try:
+                fn()
+            except Exception:
+                traceback.print_exc()
+        threading.Thread(target=run, daemon=True).start()
+
+    def _net_begin(self, s):
+        self.net = s
+        self.mic.back_gain = float(self.cfg.get("backing_vol", 1.0))
+        self.lobby_scroll = 0
+        s.client.start_polling(
+            lambda kind, payload: self.msgq.put((kind, (s, payload))))
+
+    def _net_close(self, wait=False):
+        s, self.net = self.net, None
+        self.mic.back_gain = 1.0      # Einzelspieler: wie immer
+        if s is None:
+            return
+        if wait:
+            s.close()
+        else:
+            self._net_bg(s.close)
+
+    def leave_net(self):
+        s = self.net
+        if s is None:
+            return
+        q = t("net_leave_host_q") if s.is_host else t("net_leave_q")
+        if not messagebox.askyesno(t("title"), q):
+            return
+        self._force_idle()
+        self._stop_audio()
+        self.show_menu()
+
+    def _net_lost(self, msg):
+        if self.net is None:
+            return
+        self._force_idle()
+        self._stop_audio()
+        self.show_menu()
+        messagebox.showerror(t("net_lost_t"), msg)
+
+    def _on_net_msg(self, kind, s, payload):
+        if s is not self.net:
+            return                    # Nachricht einer alten Runde
+        if kind == "net_lost":
+            self._net_lost(payload)
+            return
+        if kind == "net_wait":
+            s.trouble = payload
+        elif kind == "net_back":
+            s.trouble = None
+            self._net_retry()
+        elif kind == "net":
+            s.state = payload
+            if payload.get("phase") == "closed":
+                self._net_lost(t("net_closed"))
+                return
+            self._net_apply_takes()
+            self._net_retry()
+            self._net_follow_phase()
+        self._net_refresh()
+
+    def _net_refresh(self):
+        if self.screen == "lobby" and not self._loading:
+            self.build_lobby()
+        elif self.screen == "stage":
+            self.sync()
+        elif self.screen == "waiting" and self.phase == "idle":
+            self.build_waiting()      # nicht mitten im Abspielen neu zeichnen
+        elif self.screen == "assembling":
+            self.build_assembling()
+
+    def _net_follow_phase(self):
+        """Geht mit, wenn der Host startet oder zurueck in die Lobby holt."""
+        s = self.net
+        if s is None or self.pack is None or not s.state:
+            return
+        phase = s.state.get("phase")
+        if phase == "recording" and self.screen == "lobby":
+            # Mit der ersten eigenen, noch leeren Zeile anfangen
+            self.line_i = 0
+            for i, l in enumerate(self.pack.lines):
+                if self._net_mine(l) and l.take is None:
+                    self.line_i = i
+                    break
+            self.build_stage()
+        elif phase == "lobby" and self.screen in ("stage", "finale",
+                                                   "waiting", "assembling"):
+            if self.phase not in ("idle", "listen", "play"):
+                # Nicht mitten in die Aufnahme grätschen - gleich nochmal.
+                self.after(500, self._net_follow_phase)
+                return
+            s.want_done = False
+            self._force_idle()
+            self._stop_audio()
+            self.build_lobby()
+        elif phase == "finale" and self.screen != "finale":
+            if self.phase in ("countdown", "record"):
+                self.after(500, self._net_follow_phase)
+                return
+            self._force_idle()
+            self._stop_audio()
+            if self._net_takes_complete():
+                self.build_finale()
+            elif self.screen != "assembling":
+                self.build_assembling()
+
+    def _net_takes_complete(self):
+        """Liegen alle Aufnahmen vom Host auch hier?"""
+        s = self.net
+        takes = s.state.get("takes", {})
+        return not s.fetching and all(
+            s.revs.get(f) == info["rev"] or f in s.unsent
+            for f, info in takes.items())
+
+    # ------------------------------------------------------- Abfragen
+    def _net_owner(self, line):
+        s = self.net
+        if s is None or not s.state or line is None:
+            return None
+        return s.state["owner"].get(line.file)
+
+    def _net_mine(self, line):
+        """Im Einzelspieler gehoert jede Zeile dem Spieler."""
+        if self.net is None:
+            return True
+        return line is not None and self._net_owner(line) == self.net.me
+
+    def _net_player(self, pid):
+        s = self.net
+        for p in ((s.state or {}).get("players", []) if s else []):
+            if p["id"] == pid:
+                return p
+        return None
+
+    def _net_hint(self):
+        s = self.net
+        lines = self.pack.lines
+        if s.trouble:
+            return t("net_trouble")
+        done = sum(1 for l in lines if l.take is not None and len(l.take))
+        parts = [t("recorded_n", done, len(lines))]
+        mine_left = sum(1 for l in lines
+                        if self._net_mine(l) and l.take is None)
+        if mine_left:
+            parts.append(t("net_yours_left", mine_left))
+        else:
+            waiting = {}
+            for l in lines:
+                pid = self._net_owner(l)
+                if l.take is None and pid is not None:
+                    waiting[pid] = waiting.get(pid, 0) + 1
+            if waiting:
+                parts.append(t("net_waiting", ", ".join(
+                    "%s (%d)" % ((self._net_player(pid) or {}).get("name",
+                                                                   "?"), n)
+                    for pid, n in waiting.items())))
+        if s.unsent:
+            parts.append(t("net_unsent", len(s.unsent)))
+        return "   ·   ".join(parts)
+
+    # ------------------------------------------------ Aufnahmen tauschen
+    def _net_send(self, line):
+        """Schickt die eigene Aufnahme (oder ihr Loeschen) an den Host."""
+        s = self.net
+        f, data = line.file, line.take
+        op = "put" if data is not None else "del"
+        s.unsent[f] = op
+        s.failed.discard(f)
+
+        def work():
+            if op == "put":
+                s.client.upload_take(f, data)
+            else:
+                s.client.delete_take(f)
+
+        def done():
+            # Nur abhaken, wenn nicht inzwischen neu aufgenommen wurde.
+            if s.unsent.get(f) == op and line.take is data:
+                s.unsent.pop(f, None)
+            if self.net is s:
+                self._net_push_done()
+                self._net_refresh()
+
+        def failed(msg):
+            if ("not your line" in msg or "unknown line" in msg
+                    or "game finished" in msg):
+                s.unsent.pop(f, None)     # neu verteilt oder schon Finale
+            elif s.unsent.get(f) == op and line.take is data:
+                s.failed.add(f)
+            if self.net is s:
+                self._net_refresh()
+        self._run_bg(work, done, on_error=failed)
+
+    def _net_retry(self):
+        s = self.net
+        if s is None or self.pack is None or s.trouble:
+            return
+        lines = dict((l.file, l) for l in self.pack.lines)
+        for f in list(s.failed):
+            s.failed.discard(f)
+            if f in lines and self._net_mine(lines[f]):
+                self._net_send(lines[f])
+            else:
+                s.unsent.pop(f, None)
+
+    def _net_apply_takes(self):
+        """Gleicht die Aufnahmen mit dem Stand des Hosts ab."""
+        s = self.net
+        if s is None or self.pack is None or not s.state:
+            return
+        lines = dict((l.file, l) for l in self.pack.lines)
+        takes = s.state.get("takes", {})
+        for f, info in takes.items():
+            line = lines.get(f)
+            if line is None or s.revs.get(f) == info["rev"] or f in s.unsent:
+                continue
+            if info["player"] == s.me and line.take is not None:
+                s.revs[f] = info["rev"]   # die eigene, liegt schon hier
+                continue
+            self._net_fetch(f, info["rev"])
+        for f in list(s.revs):
+            if f not in takes:
+                s.revs.pop(f)
+                if f in lines and f not in s.unsent:
+                    lines[f].take = None
+
+    def _net_fetch(self, f, rev):
+        s = self.net
+        if f in s.fetching:
+            return
+        s.fetching.add(f)
+        got = {}
+
+        def work():
+            got["data"] = s.client.fetch_take(f)
+
+        def done():
+            s.fetching.discard(f)
+            if self.net is not s or self.pack is None:
+                return
+            line = next((l for l in self.pack.lines if l.file == f), None)
+            if line is not None and f not in s.unsent:
+                line.take = got["data"]
+                s.revs[f] = rev
+            cur = s.state.get("takes", {}).get(f)
+            if cur and cur["rev"] != rev:
+                self._net_fetch(f, cur["rev"])
+            if self.screen == "finale":
+                self.cv.itemconfigure(self.fin_msg, text=t("net_new_takes"),
+                                      fill=GOLD)
+            self._net_follow_phase()
+            self._net_refresh()
+
+        def failed(_msg):
+            s.fetching.discard(f)
+        self._run_bg(work, done, on_error=failed)
+
+    # ------------------------------------------------------- Bereit
+    def net_ready(self):
+        """Letzte Zeile: bereit melden und auf die anderen warten."""
+        s = self.net
+        self._stop_audio()
+        self._set_phase("idle")
+        s.want_done = True
+        self.build_waiting()
+        self._net_push_done()
+
+    def _net_push_done(self):
+        # Erst wenn alle eigenen Aufnahmen beim Host sind - sonst beginnt
+        # das Finale womoeglich ohne die letzte.
+        s = self.net
+        if s is None or not s.want_done or s.unsent:
+            return
+        self._net_bg(lambda: s.client.set_done(True))
+
+    def net_back_to_lines(self):
+        s = self.net
+        s.want_done = False
+        self._stop_audio()
+        self._set_phase("idle")
+        self._net_bg(lambda: s.client.set_done(False))
+        self.back_to_stage()
+
+    def build_waiting(self):
+        s = self.net
+        if s is None:
+            self.show_menu()
+            return
+        self.screen = "waiting"
+        self._clear_canvas()
+        self._backdrop()
+        cv = self.cv
+        w, h = self.size()
+        pad = 34
+        st = s.state or {}
+
+        self._btn(pad, 24, 130, 38, "‹  " + t("net_leave"), self.leave_net,
+                  "flat", font=("Segoe UI", 11))
+        cv.create_text(w / 2, 44, text=t("wait_title"), fill=TXT,
+                       font=("Segoe UI Black", 24))
+        self._back_slider(w - pad, 43)
+        cv.create_text(w / 2, 76, text=t("wait_sub"), fill=DIM,
+                       font=("Segoe UI", 11))
+
+        # Video links - fuer "Meine Zeilen abspielen"
+        top = 112
+        vw, vh = self._video_size(int(w * 0.6), h - top - 160, pad)
+        vx = pad + 16
+        self.video_box = (vx, top, vw, vh)
+        self._last_idx = None
+        round_rect(cv, vx - 8, top - 8, vx + vw + 8, top + vh + 8, r=18,
+                   fill="#05060a", outline=EDGE)
+        self.video_item = cv.create_image(vx + vw / 2, top + vh / 2,
+                                          anchor="center")
+        self.overlay_rect = round_rect(cv, vx, top, vx + vw, top + vh, r=12,
+                                       fill="#000000", stipple="gray50",
+                                       outline="", state="hidden")
+        self.overlay_text = cv.create_text(vx + vw / 2, top + vh / 2, text="",
+                                           fill=GOLD, state="hidden",
+                                           font=("Segoe UI Black", 40))
+        self.wait_caption = cv.create_text(
+            vx + vw / 2, top + vh + 18, anchor="n", text="", fill=GOLD,
+            font=("Segoe UI Semibold", 13), width=vw - 20, justify="center")
+
+        # Fortschritt aller Spieler rechts
+        px0, px1 = vx + vw + 28, w - pad
+        round_rect(cv, px0, top - 8, px1, top + vh + 8, r=16, fill=PANEL,
+                   outline=EDGE)
+        cv.create_text(px0 + 18, top + 14, anchor="w", text=t("players"),
+                       fill=DIM, font=("Segoe UI Semibold", 10))
+        owner, takes = st.get("owner", {}), st.get("takes", {})
+        players = [p for p in st.get("players", []) if not p.get("left")]
+        for i, p in enumerate(players):
+            y = top + 44 + i * 50
+            if y > top + vh - 20:
+                break
+            total = sum(1 for o in owner.values() if o == p["id"])
+            got = sum(1 for f, o in owner.items()
+                      if o == p["id"] and f in takes)
+            cv.create_oval(px0 + 18, y - 6, px0 + 30, y + 6, fill=p["color"],
+                           outline="")
+            name = p["name"] + ("  (%s)" % t("you") if p["id"] == s.me
+                                else "")
+            cv.create_text(px0 + 40, y, anchor="w", text=name, fill=TXT,
+                           font=("Segoe UI Semibold", 11))
+            if not p.get("online"):
+                status, col = t("st_off"), RED
+            elif p.get("done"):
+                status, col = t("st_done"), TEAL
+            else:
+                status, col = t("st_working"), GOLD
+            cv.create_text(px0 + 40, y + 20, anchor="w",
+                           text="%s   ·   %s" % (t("lines_done", got, total),
+                                                status),
+                           fill=col, font=("Segoe UI", 10))
+
+        # Knoepfe
+        mine = [l for l in self.pack.lines
+                if self._net_mine(l) and l.take is not None]
+        by = min(top + vh + 64, h - 76)
+        self.wait_caption_h = max(16, by - (top + vh + 18) - 6)
+        self.b_replay = self._btn(vx, by, 230, 48, "▶  " + t("replay_mine"),
+                                  self.replay_mine, "go",
+                                  font=("Segoe UI Semibold", 12))
+        self.b_replay.set_enabled(bool(mine))
+        self._btn(vx + 246, by, 240, 48, "‹  " + t("back_mine"),
+                  self.net_back_to_lines, "ghost")
+        if s.is_host:
+            self._btn(w - pad - 200, by, 200, 48, t("finish_now"),
+                      s.room.finish, "primary")
+        if s.trouble:
+            msg = t("net_trouble")
+        elif s.unsent:
+            msg = t("net_unsent", len(s.unsent))
+        elif not mine:
+            msg = t("no_takes_mine")
+        else:
+            msg = ""
+        cv.create_text(w / 2, by + 70, text=msg, fill=DIM,
+                       font=("Segoe UI", 10))
+        self.show_frame(mine[0].start if mine else 0.0)
+
+    def replay_mine(self):
+        """Spielt die eigenen Aufnahmen nacheinander zum Video ab."""
+        if self.phase != "idle":
+            self._stop_audio()
+            self._set_phase("idle")
+            self.build_waiting()
+            return
+        queue_ = [l for l in self.pack.lines
+                  if self._net_mine(l) and l.take is not None]
+        if queue_:
+            self.b_replay.set_text("■  " + t("stop"))
+            self._replay_next(queue_, 0)
+
+    def _replay_next(self, queue_, i):
+        if self.screen != "waiting" or (i > 0 and self.phase != "listen"):
+            return
+        if i >= len(queue_):
+            self._stop_audio()
+            self._set_phase("idle")
+            self.build_waiting()
+            return
+        line = queue_[i]
+        dur = len(line.take) / float(ds.SR)
+        self._set_phase("listen", dur)
+        self._fit_text(self.wait_caption, line.caption or line.name,
+                       self.wait_caption_h, size=13, min_size=9)
+        try:
+            self._play_backed(line.take, line.start, 0.5)
+        except Exception:
+            traceback.print_exc()
+        self._play_from(line.start, dur,
+                        lambda: self._replay_next(queue_, i + 1))
+
+    def build_assembling(self):
+        """Alle sind bereit - die letzten Aufnahmen werden noch geholt."""
+        s = self.net
+        if s is None:
+            self.show_menu()
+            return
+        self.screen = "assembling"
+        self._clear_canvas()
+        self._backdrop()
+        cv = self.cv
+        w, h = self.size()
+        takes = (s.state or {}).get("takes", {})
+        here = sum(1 for f, info in takes.items()
+                   if s.revs.get(f) == info["rev"] or f in s.unsent)
+        cv.create_text(w / 2, h / 2 - 20, text=t("assembling"), fill=TXT,
+                       font=("Segoe UI Black", 24))
+        cv.create_text(w / 2, h / 2 + 22, fill=DIM, font=("Segoe UI", 11),
+                       text=t("assembling_n", here, len(takes)))
+
+    # ------------------------------------------------------------ Lobby
+    def _copy(self, text):
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        try:
+            self.cv.itemconfigure(self.lobby_msg, text=t("copied"), fill=TEAL)
+        except Exception:
+            pass
+
+    def _net_addresses(self):
+        """(Bezeichnung, Anzeige, zum Kopieren oder None)"""
+        s = self.net
+        if not s.is_host:
+            return [(t("joined_addr"), s.client.base, s.client.base)]
+        port = s.server.port
+        out = []
+        if s.tunnel_url:
+            # Browser erlauben das Mikrofon nur ueber https - also nur hier.
+            link = "%s/#code=%s" % (s.tunnel_url, s.client.code)
+            out.append((t("addr_browser"), link.split("://", 1)[1], link))
+            out.append((t("addr_tunnel"), s.tunnel_url.split("://", 1)[1],
+                        s.tunnel_url))
+        lan = "%s:%d" % (net.lan_ip(), port)
+        out.append((t("addr_lan"), lan, lan))
+        out.append((t("addr_inet"), t("addr_inet_v", port), None))
+        return out
+
+    def _lobby_units(self):
+        """Zeilen fuer die Rollenliste: nach Figur oder einzeln."""
+        if self.lobby_by_line:
+            return [("%d  %s" % (l.index + 1, l.name), [l])
+                    for l in self.pack.lines]
+        return net.line_groups(self.pack.lines)
+
+    def _lobby_cycle(self, files):
+        """
+        Host: Rolle reihum weitergeben (frei -> Spieler 1 -> ... -> frei).
+        Alle anderen: freie Rolle nehmen, eigene abgeben.
+        """
+        s = self.net
+        if s is None:
+            return
+        if s.is_host:
+            order = [None] + s.room.active_ids()
+            cur = s.room.owner.get(files[0])
+            nxt = order[(order.index(cur) + 1) % len(order)] \
+                if cur in order else None
+            s.room.assign_all(dict((f, nxt) for f in files))
+            return
+        owner = (s.state or {}).get("owner", {})
+        owners = set(owner.get(f) for f in files)
+        if owners == {s.me}:
+            take = False
+        elif owners <= {None, s.me}:
+            take = True
+        else:
+            self.cv.itemconfigure(self.lobby_msg, text=t("role_taken"),
+                                  fill=RED)
+            return
+
+        def failed(msg):
+            if self.screen == "lobby":
+                self.cv.itemconfigure(self.lobby_msg, fill=RED,
+                                      text=t("role_taken")
+                                      if "taken" in msg else msg)
+        self._run_bg(lambda: s.client.claim(files, take), lambda: None,
+                     on_error=failed)
+
+    def net_auto_split(self):
+        s = self.net
+        if s and s.is_host and self.pack:
+            s.room.auto_split()
+
+    def _toggle_lobby_view(self):
+        self.lobby_by_line = not self.lobby_by_line
+        self.lobby_scroll = 0
+        self.build_lobby()
+
+    def build_lobby(self):
+        s = self.net
+        if s is None:
+            self.show_menu()
+            return
+        self.screen = "lobby"
+        self._clear_canvas()
+        self._backdrop()
+        self.lobby_rows = []
+        cv = self.cv
+        w, h = self.size()
+        st = s.state or {}
+        players = [p for p in st.get("players", []) if not p.get("left")]
+
+        self._btn(34, 24, 130, 38, "‹  " + t("net_leave"), self.leave_net,
+                  "flat", font=("Segoe UI", 11))
+        cv.create_text(w / 2, 40, text=t("lobby"), fill=TXT,
+                       font=("Segoe UI Black", 22))
+        cv.create_text(w / 2, 72, text=st.get("pack", {}).get("name", ""),
+                       fill=DIM, font=("Segoe UI", 11))
+
+        top, bottom = 104, h - 100
+        lx0, lx1 = 50, int(w * 0.42)
+        rx0, rx1 = lx1 + 22, w - 50
+
+        # ---- Raumcode
+        round_rect(cv, lx0, top, lx1, top + 92, r=16, fill=PANEL, outline=EDGE)
+        cv.create_text(lx0 + 20, top + 22, anchor="w", text=t("room_code"),
+                       fill=DIM, font=("Segoe UI Semibold", 10))
+        cv.create_text(lx0 + 20, top + 60, anchor="w", text=s.client.code,
+                       fill=GOLD, font=("Consolas", 28, "bold"))
+        self._btn(lx1 - 104, top + 42, 86, 34, t("copy"),
+                  lambda: self._copy(s.client.code), "ghost",
+                  font=("Segoe UI", 10))
+
+        # ---- Adressen
+        addrs = self._net_addresses()
+        ay = top + 106
+        ah = 38 + 48 * len(addrs)
+        round_rect(cv, lx0, ay, lx1, ay + ah, r=16, fill=PANEL, outline=EDGE)
+        cv.create_text(lx0 + 20, ay + 22, anchor="w",
+                       text=t("share_addr") if s.is_host
+                       else t("joined_addr"),
+                       fill=DIM, font=("Segoe UI Semibold", 10))
+        for i, (label, text, value) in enumerate(addrs):
+            y = ay + 40 + i * 48
+            cv.create_text(lx0 + 20, y + 8, anchor="w", text=label,
+                           fill=DIM, font=("Segoe UI", 9))
+            cv.create_text(lx0 + 20, y + 28, anchor="w", text=text,
+                           fill=TXT if value else DIM,
+                           font=("Consolas", 10), width=lx1 - lx0 - 130)
+            if value:
+                self._btn(lx1 - 104, y + 4, 86, 30, t("copy"),
+                          lambda v=value: self._copy(v), "ghost",
+                          font=("Segoe UI", 10))
+
+        # ---- Spieler
+        py = ay + ah + 14
+        round_rect(cv, lx0, py, lx1, bottom, r=16, fill=PANEL, outline=EDGE)
+        cv.create_text(lx0 + 20, py + 22, anchor="w", text=t("players"),
+                       fill=DIM, font=("Segoe UI Semibold", 10))
+        for i, p in enumerate(players):
+            y = py + 50 + i * 30
+            if y > bottom - 14:
+                break
+            cv.create_oval(lx0 + 20, y - 6, lx0 + 32, y + 6, fill=p["color"],
+                           outline="")
+            tags = []
+            if p.get("host"):
+                tags.append(t("host_tag"))
+            if p["id"] == s.me:
+                tags.append(t("you"))
+            name = p["name"] + ("  (%s)" % ", ".join(tags) if tags else "")
+            cv.create_text(lx0 + 42, y, anchor="w", text=name, fill=TXT,
+                           font=("Segoe UI Semibold", 11))
+            if not p.get("online"):
+                status, col = t("st_off"), RED
+            elif p.get("ready"):
+                status, col = t("st_ready"), TEAL
+            elif p.get("progress", 0) >= 0.99:
+                status, col = t("st_prep"), GOLD
+            else:
+                status, col = t("st_dl", int(p.get("progress", 0) * 100)), GOLD
+            cv.create_text(lx1 - 20, y, anchor="e", text=status, fill=col,
+                           font=("Segoe UI", 10))
+
+        # ---- Rollen
+        round_rect(cv, rx0, top, rx1, bottom, r=16, fill=PANEL, outline=EDGE)
+        cv.create_text(rx0 + 20, top + 24, anchor="w", text=t("roles"),
+                       fill=TXT, font=("Segoe UI Semibold", 13))
+        cv.create_text(rx0 + 20, top + 46, anchor="w",
+                       text=t("roles_hint") if s.is_host
+                       else t("roles_pick"), fill=DIM,
+                       font=("Segoe UI", 9))
+        if self.pack is None:
+            cv.create_text((rx0 + rx1) / 2, (top + bottom) / 2,
+                           text=t("dl_pack"), fill=GOLD,
+                           font=("Segoe UI Semibold", 12))
+        else:
+            self._btn(rx1 - 150, top + 14, 132, 30,
+                      t("by_char") if self.lobby_by_line else t("by_line"),
+                      self._toggle_lobby_view, "ghost",
+                      font=("Segoe UI", 10))
+            owner = st.get("owner", {})
+            units = self._lobby_units()
+            row_h, y0 = 42, top + 64
+            per_page = max(1, int((bottom - 12 - y0) // row_h))
+            self.lobby_scroll = max(0, min(self.lobby_scroll,
+                                           len(units) - per_page))
+            for i, (label, lines) in enumerate(
+                    units[self.lobby_scroll:self.lobby_scroll + per_page]):
+                y = y0 + i * row_h
+                pids = []
+                for l in lines:
+                    pid = owner.get(l.file)
+                    if pid not in pids:
+                        pids.append(pid)
+                ps = [self._net_player(pid) or {"name": t("role_free")}
+                      for pid in pids]
+                round_rect(cv, rx0 + 14, y, rx1 - 14, y + row_h - 6, r=10,
+                           fill=PANEL_HI, outline="")
+                seg = (row_h - 6) / float(max(1, len(ps)))
+                for k, p in enumerate(ps):
+                    cv.create_rectangle(rx0 + 14, y + k * seg, rx0 + 20,
+                                        y + (k + 1) * seg, width=0,
+                                        fill=p.get("color", DIM))
+                cv.create_text(rx0 + 32, y + (row_h - 6) / 2, anchor="w",
+                               text=label, fill=TXT,
+                               font=("Segoe UI Semibold", 11),
+                               width=(rx1 - rx0) * 0.45)
+                secs = sum(l.duration for l in lines)
+                meta = "%s · %.1f s" % (t("lines_n", len(lines)), secs)
+                cv.create_text(rx0 + (rx1 - rx0) * 0.55, y + (row_h - 6) / 2,
+                               anchor="w", text=meta, fill=DIM,
+                               font=("Segoe UI", 9))
+                cv.create_text(rx1 - 28, y + (row_h - 6) / 2, anchor="e",
+                               text=" / ".join(p.get("name", "?")
+                                               for p in ps),
+                               fill=ps[0].get("color", DIM) if ps else DIM,
+                               font=("Segoe UI Semibold", 10))
+                self.lobby_rows.append(
+                    ((rx0 + 14, y, rx1 - 14, y + row_h - 6),
+                     [l.file for l in lines]))
+            if len(units) > per_page:
+                cv.create_text((rx0 + rx1) / 2, bottom - 10,
+                               text="%d / %d" % (min(len(units),
+                                                     self.lobby_scroll
+                                                     + per_page),
+                                                 len(units)),
+                               fill=DIM, font=("Segoe UI", 9))
+
+        # ---- untere Leiste
+        by = h - 76
+        all_ready = bool(players) and all(p.get("ready") and p.get("online")
+                                          for p in players)
+        if s.is_host:
+            self._btn(50, by, 200, 46, t("auto_split"), self.net_auto_split,
+                      "ghost")
+            go = self._btn(w - 250, by, 200, 46, t("net_start"),
+                           s.room.start, "go",
+                           font=("Segoe UI Semibold", 13))
+            go.set_enabled(all_ready and self.pack is not None)
+            msg = t("can_start") if all_ready else t("wait_ready")
+            free = sum(1 for pid in st.get("owner", {}).values()
+                       if pid is None)
+            if all_ready and free:
+                msg = t("unassigned_n", free)
+        else:
+            msg = t("wait_host") if self.pack is not None else t("dl_pack")
+        if s.trouble:
+            msg = t("net_trouble")
+        self.lobby_msg = cv.create_text(w / 2, by + 23, text=msg, fill=DIM,
+                                        font=("Segoe UI", 10))
 
     # ------------------------------------------------------- Hintergrund
     def _run_bg(self, fn, on_done, on_error=None):
@@ -1789,6 +3240,8 @@ class Game(tk.Tk):
                         self.upd_info = payload
                         if self.screen == "menu":
                             self.show_menu()
+                elif kind in ("net", "net_wait", "net_back", "net_lost"):
+                    self._on_net_msg(kind, *payload)
                 elif kind == "upd_say":
                     self._upd_say(payload)
                 elif kind == "upd_quit":
@@ -1815,7 +3268,8 @@ class Game(tk.Tk):
 
     def _on_close(self):
         # Siehe DubForge: beim Update haengt ein Skript am Prozessende.
-        for step in (self._stop_audio, lambda: save_cfg(self.cfg)):
+        for step in (self._stop_audio, lambda: save_cfg(self.cfg),
+                     lambda: self._net_close(wait=True)):
             try:
                 step()
             except Exception:

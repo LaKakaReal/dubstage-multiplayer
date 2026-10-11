@@ -14,6 +14,8 @@
 ;      ein vorhandenes Python wird weder gebraucht noch angefasst.
 ;    - laedt ffmpeg nach tools\ (Fortschrittsanzeige, zwei Quellen).
 ;    - installiert auf Wunsch Demucs und die Spracherkennung per pip.
+;    - laedt auf Wunsch cloudflared nach tools\ (Mehrspieler ohne
+;      Portfreigabe ueber einen Cloudflare Quick Tunnel).
 ;    - legt Startmenue- und optional Desktop-Verknuepfungen mit eigenem
 ;      Symbol an.
 ; ============================================================================
@@ -100,6 +102,10 @@ de.StatusFfmpeg=ffmpeg wird eingerichtet ...
 de.StatusBase=Python-Pakete werden aktualisiert ...
 de.StatusDemucs=Demucs wird installiert – das kann einige Minuten dauern ...
 de.StatusAsr=Spracherkennung wird installiert ...
+de.CompTunnel=cloudflared für den Mehrspieler (Freunde treten ohne Portfreigabe bei, ca. 55 MB)
+de.TunnelTitle=cloudflared wird heruntergeladen
+de.TunnelDesc=Damit können Freunde im Mehrspieler ohne Portfreigabe beitreten (ca. 55 MB).
+de.StatusTunnel=cloudflared wird eingerichtet ...
 de.PartFailed=Einige Teile konnten nicht eingerichtet werden:%1%n%nDubForge und DubStage lassen sich trotzdem starten. Einzelheiten stehen im Setup-Protokoll:%n%2%n%nSetup später erneut ausführen, um es noch einmal zu versuchen.
 de.AskDeleteData=Sollen auch deine Packs, Aufnahmen und Einstellungen gelöscht werden?%n%n%1%n%nMit "Nein" bleiben sie erhalten.
 
@@ -120,6 +126,10 @@ en.StatusFfmpeg=Setting up ffmpeg ...
 en.StatusBase=Updating Python packages ...
 en.StatusDemucs=Installing Demucs - this can take a few minutes ...
 en.StatusAsr=Installing speech recognition ...
+en.CompTunnel=cloudflared for multiplayer (friends join without port forwarding, about 55 MB)
+en.TunnelTitle=Downloading cloudflared
+en.TunnelDesc=Lets friends join multiplayer games without port forwarding (about 55 MB).
+en.StatusTunnel=Setting up cloudflared ...
 en.PartFailed=Some parts could not be set up:%1%n%nDubForge and DubStage will still start. Details are in the setup log:%n%2%n%nRun the setup again later to retry.
 en.AskDeleteData=Also delete your packs, recordings and settings?%n%n%1%n%nChoose "No" to keep them.
 
@@ -132,6 +142,7 @@ Name: "custom"; Description: "{cm:TypeCustom}"; Flags: iscustom
 Name: "main"; Description: "{cm:CompMain}"; Types: standard full custom; Flags: fixed
 Name: "demucs"; Description: "{cm:CompDemucs}"; Types: full; ExtraDiskSpaceRequired: 2000000000
 Name: "asr"; Description: "{cm:CompAsr}"; Types: full; ExtraDiskSpaceRequired: 400000000
+Name: "tunnel"; Description: "{cm:CompTunnel}"; Types: standard full; ExtraDiskSpaceRequired: 60000000
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -147,6 +158,7 @@ Source: "{#Root}\LIESMICH.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion
+Source: "{#Root}\web\*"; DestDir: "{app}\web"; Flags: ignoreversion
 Source: "{#Runtime}\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -166,6 +178,7 @@ Filename: "{app}\runtime\pythonw.exe"; Parameters: """{app}\DubForge.pyw"""; Wor
 Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\tools"
 Type: filesandordirs; Name: "{app}\assets"
+Type: filesandordirs; Name: "{app}\web"
 Type: filesandordirs; Name: "{app}\__pycache__"
 Type: files; Name: "{app}\*.py"
 Type: files; Name: "{app}\*.pyw"
@@ -177,11 +190,14 @@ Type: files; Name: "{app}\*.bat"
 const
   FfmpegUrl1 = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip';
   FfmpegUrl2 = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';
+  { Offizielle Einzeldatei von Cloudflare - kein Archiv, kein Installer. }
+  CloudflaredUrl = 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe';
   PipArgs = '-m pip install --upgrade --disable-pip-version-check --no-warn-script-location --progress-bar off ';
 
 var
   DownloadPage: TDownloadWizardPage;
   FfmpegZip: String;
+  CloudflaredExe: String;
 
 function OnDownloadProgress(const Url, FileName: String; const Progress, ProgressMax: Int64): Boolean;
 begin
@@ -206,17 +222,55 @@ end;
 
 { ------------------------------------------------------------ ffmpeg laden }
 
-function TryDownload(const Url: String): Boolean;
+function TryDownload(const Url, FileName: String): Boolean;
 begin
   DownloadPage.Clear;
-  DownloadPage.Add(Url, 'ffmpeg.zip', '');
+  DownloadPage.Add(Url, FileName, '');
   try
     DownloadPage.Download;
     Result := True;
   except
-    Log('ffmpeg: ' + Url + ' - ' + GetExceptionMessage);
+    Log(FileName + ': ' + Url + ' - ' + GetExceptionMessage);
     Result := False;
   end;
+end;
+
+function DownloadFfmpeg: Boolean;
+begin
+  Result := True;
+  { Bei einer Neuinstallation oder Reparatur ueber eine bestehende bleibt ein
+    vorhandenes ffmpeg einfach liegen. }
+  if FileExists(AddBackslash(WizardDirValue) + 'tools\ffmpeg.exe') then
+    exit;
+  DownloadPage.SetText(CustomMessage('FfmpegTitle'), CustomMessage('FfmpegDesc'));
+  if TryDownload(FfmpegUrl1, 'ffmpeg.zip') then
+    FfmpegZip := ExpandConstant('{tmp}\ffmpeg.zip')
+  else if DownloadPage.AbortedByUser then
+    Result := False
+  else if TryDownload(FfmpegUrl2, 'ffmpeg.zip') then
+    FfmpegZip := ExpandConstant('{tmp}\ffmpeg.zip')
+  else if DownloadPage.AbortedByUser then
+    Result := False
+  else
+    SuppressibleMsgBox(FmtMessage(CustomMessage('FfmpegFailed'), [WizardDirValue]),
+      mbError, MB_OK, IDOK);
+end;
+
+function DownloadCloudflared: Boolean;
+begin
+  Result := True;
+  if not WizardIsComponentSelected('tunnel') or
+     FileExists(AddBackslash(WizardDirValue) + 'tools\cloudflared.exe') then
+    exit;
+  DownloadPage.SetText(CustomMessage('TunnelTitle'), CustomMessage('TunnelDesc'));
+  { Ohne cloudflared laeuft alles andere - ein Fehlschlag wird am Ende nur
+    gemeldet, nicht hier. }
+  if TryDownload(CloudflaredUrl, 'cloudflared.exe') then
+    CloudflaredExe := ExpandConstant('{tmp}\cloudflared.exe')
+  else if DownloadPage.AbortedByUser then
+    Result := False
+  else
+    CloudflaredExe := '?';
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -225,25 +279,10 @@ begin
   if CurPageID <> wpReady then
     exit;
   FfmpegZip := '';
-  { Bei einer Neuinstallation oder Reparatur ueber eine bestehende bleibt ein
-    vorhandenes ffmpeg einfach liegen. }
-  if FileExists(AddBackslash(WizardDirValue) + 'tools\ffmpeg.exe') then
-    exit;
-
-  DownloadPage.SetText(CustomMessage('FfmpegTitle'), CustomMessage('FfmpegDesc'));
+  CloudflaredExe := '';
   DownloadPage.Show;
   try
-    if TryDownload(FfmpegUrl1) then
-      FfmpegZip := ExpandConstant('{tmp}\ffmpeg.zip')
-    else if DownloadPage.AbortedByUser then
-      Result := False
-    else if TryDownload(FfmpegUrl2) then
-      FfmpegZip := ExpandConstant('{tmp}\ffmpeg.zip')
-    else if DownloadPage.AbortedByUser then
-      Result := False
-    else
-      SuppressibleMsgBox(FmtMessage(CustomMessage('FfmpegFailed'), [WizardDirValue]),
-        mbError, MB_OK, IDOK);
+    Result := DownloadFfmpeg and DownloadCloudflared;
   finally
     DownloadPage.Hide;
   end;
@@ -297,6 +336,19 @@ begin
   Result := FileExists(Tools + '\ffmpeg.exe') and FileExists(Tools + '\ffprobe.exe');
 end;
 
+function InstallCloudflared: Boolean;
+var
+  Tools: String;
+begin
+  Tools := ExpandConstant('{app}\tools');
+  ForceDirectories(Tools);
+  WizardForm.StatusLabel.Caption := CustomMessage('StatusTunnel');
+  Result := (CloudflaredExe <> '?') and
+            FileCopy(CloudflaredExe, Tools + '\cloudflared.exe', False);
+  if CloudflaredExe <> '?' then
+    DeleteFile(CloudflaredExe);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Failed: String;
@@ -309,6 +361,10 @@ begin
     if FfmpegZip <> '' then
       if not InstallFfmpeg then
         Failed := Failed + #13#10 + '  - ffmpeg';
+
+    if CloudflaredExe <> '' then
+      if not InstallCloudflared then
+        Failed := Failed + #13#10 + '  - cloudflared';
 
     { yt-dlp muss mit YouTube Schritt halten - frisch holen. Ohne Netz bleibt
       die mitgelieferte Fassung, das ist kein Fehler. }

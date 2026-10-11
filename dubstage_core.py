@@ -126,6 +126,7 @@ def load_pack(folder):
     pack.video = video
 
     from_txt = timestamps_from_txt(folder)
+    cv = {}                                     # Choicer-Voicer-Metadaten
     entries = []
     for f in sorted(os.listdir(folder)):
         low = f.lower()
@@ -139,28 +140,76 @@ def load_pack(folder):
         ts = timestamp_from_name(f)
         if ts is None:
             ts = from_txt.get(f)
-        entries.append((f, ts))
+        if ts is not None:
+            entries.append((f, ts, 1))
+            continue
+        # Choicer Voicer: Zeitstempel in der .txt neben dem Clip, ein Clip
+        # darf an mehreren Stellen der Szene laufen.
+        meta = _cv_meta(folder, f)
+        if meta is not None:
+            cv[f] = meta
+            for n, t in enumerate(meta["timestamps"]):
+                entries.append((f, t, n + 1))
 
-    known = [e for e in entries if e[1] is not None]
-    if not known:
+    if not entries:
         # Ohne Zeitstempel koennen wir nicht synchronisieren.
         return None
 
-    known.sort(key=lambda e: e[1])
+    entries.sort(key=lambda e: e[1])
     captions = pc.read_captions(folder)
-    for i, (f, ts) in enumerate(known):
+    for i, (f, ts, n) in enumerate(entries):
         line = Line(os.path.join(folder, f), ts, i)
+        if n > 1:
+            line.file = "%s#%d" % (f, n)     # eindeutiger Schluessel
         line.caption = captions.get(f, "")
+        meta = cv.get(f)
+        if meta and meta["characters"]:
+            line.name = meta["characters"][0]
         pack.lines.append(line)
+
+    info = os.path.join(folder, pc.CV_PACK_INFO)
+    if os.path.isfile(info):
+        try:
+            title = str(pc.read_cv_file(info).get("title") or "").strip()
+            if title:
+                pack.name = title
+        except Exception:
+            pass
     return pack
 
 
-def find_packs(extra_dirs=None):
-    """Sucht Dub-Packs im eigenen packs-Ordner und in zusaetzlichen Ordnern."""
+def _cv_meta(folder, audio_name):
+    """Liest '<clip>.txt' im Choicer-Voicer-Format, sonst None."""
+    path = os.path.join(folder, os.path.splitext(audio_name)[0] + ".txt")
+    if not os.path.isfile(path):
+        return None
+    try:
+        data = pc.read_cv_file(path)
+    except Exception:
+        return None
+    times = data.get("dub_timestamps")
+    if not isinstance(times, list):
+        return None
+    times = sorted(float(t) for t in times if isinstance(t, float) and t >= 0)
+    if not times:
+        return None
+    chars = data.get("dub_characters")
+    chars = [str(c).strip() for c in chars if str(c).strip()] \
+        if isinstance(chars, list) else []
+    return {"timestamps": times, "characters": chars}
+
+
+def find_packs(extra_dirs=None, pending=None):
+    """
+    Sucht Dub-Packs im eigenen packs-Ordner und in zusaetzlichen Ordnern.
+    Zips und RARs (dort oder direkt hinzugefuegt) zaehlen, sobald sie
+    entpackt sind; noch nicht entpackte landen in der Liste pending.
+    """
     roots = []
 
     def add_root(p):
-        if p and os.path.isdir(p) and os.path.normpath(p) not in \
+        ok = p and (os.path.isdir(p) or (is_archive(p) and os.path.isfile(p)))
+        if ok and os.path.normpath(p) not in \
                 [os.path.normpath(r) for r in roots]:
             roots.append(p)
 
@@ -170,17 +219,205 @@ def find_packs(extra_dirs=None):
 
     packs = []
     seen = set()
+
+    def visit(folder, depth):
+        """Pack selbst, sonst eine Ebene tiefer - entpackte Zips liegen oft
+        in einem Huellordner (pennywise_vs_groot/Pennywise vs Groot)."""
+        key = os.path.normpath(folder).lower()
+        if key in seen:
+            return
+        seen.add(key)
+        p = load_pack(folder)
+        if p:
+            packs.append(p)
+            return
+        if depth <= 0:
+            return
+        try:
+            entries = sorted(os.listdir(folder))
+        except OSError:
+            return
+        for entry in entries:
+            sub = os.path.join(folder, entry)
+            # _net & Co. sind interne Ordner, kein Inhalt fuers Menue
+            if not entry.startswith(("_", ".")) and os.path.isdir(sub):
+                visit(sub, depth - 1)
+
+    def visit_archive(path):
+        """Schon entpackt: wie ein Ordner. Sonst fuer spaeter vormerken."""
+        target = archive_target(path)
+        if os.path.isdir(target):
+            visit(target, 2)
+        elif pending is not None and path not in pending                 and target not in NOT_PACKS:
+            pending.append(path)
+
     for root in roots:
-        for entry in sorted(os.listdir(root)):
-            folder = os.path.join(root, entry)
-            key = os.path.normpath(folder).lower()
-            if key in seen or not os.path.isdir(folder):
-                continue
-            seen.add(key)
-            p = load_pack(folder)
-            if p:
-                packs.append(p)
+        if is_archive(root):
+            visit_archive(root)
+            continue
+        visit(root, 2)
+        # Zips und RARs direkt im Ordner (dort landen Downloads)
+        try:
+            entries = sorted(os.listdir(root))
+        except OSError:
+            entries = []
+        for entry in entries:
+            sub = os.path.join(root, entry)
+            # Schon von Hand entpackt (X.zip neben Ordner X)? Dann den Ordner.
+            if is_archive(sub) and os.path.isfile(sub)                     and not os.path.isdir(os.path.splitext(sub)[0]):
+                visit_archive(sub)
     return packs
+
+
+# ==========================================================================
+#  Archive / zip and rar packs
+# ==========================================================================
+
+ARCHIVE_EXTS = (".zip", ".rar")
+ARCHIVES_DIR = os.path.join(PACKS_DIR, "_archives")   # entpackte Archive
+NOT_PACKS = set()      # Archive ohne dub_video (archive_target), je Sitzung
+
+
+def is_archive(path):
+    return os.path.splitext(path)[1].lower() in ARCHIVE_EXTS
+
+
+def archive_target(path):
+    """
+    Ordner, in den ein Archiv entpackt wird. Name, Groesse und Zeitstempel
+    stecken im Namen - ein ersetztes Archiv wird neu entpackt.
+    """
+    import hashlib
+    try:
+        st = os.stat(path)
+        sig = "%s|%d|%d" % (os.path.normcase(os.path.abspath(path)),
+                            st.st_size, int(st.st_mtime))
+    except OSError:
+        sig = os.path.normcase(os.path.abspath(path))
+    h = hashlib.sha1(sig.encode("utf-8")).hexdigest()[:8]
+    stem = pc.safe_name(os.path.splitext(os.path.basename(path))[0], "pack")
+    return os.path.join(ARCHIVES_DIR, "%s-%s" % (stem[:60], h))
+
+
+def _extract_zip(path, dest):
+    """Entpackt ein Zip - nie ausserhalb von dest."""
+    import zipfile
+    root = os.path.abspath(dest)
+    with zipfile.ZipFile(path) as z:
+        for info in z.infolist():
+            name = info.filename.replace("\\", "/")
+            target = os.path.abspath(os.path.join(root, *name.split("/")))
+            if not target.startswith(root + os.sep):
+                raise RuntimeError("Unsafe path in archive: %r" % info.filename)
+            if name.endswith("/"):
+                os.makedirs(target, exist_ok=True)
+                continue
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with z.open(info) as src, open(target, "wb") as dst:
+                shutil.copyfileobj(src, dst, 1024 * 1024)
+
+
+def _windows_tar():
+    """Windows 10/11 bringt bsdtar (libarchive) mit, das RAR und RAR5 liest."""
+    tar = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"),
+                       "System32", "tar.exe")
+    return tar if os.path.isfile(tar) else None
+
+
+def _rar_tools():
+    """Programme, die RAR entpacken koennen - in dieser Reihenfolge."""
+    tools = []
+    tar = _windows_tar()
+    if tar:
+        tools.append(lambda src, dst: [tar, "-xf", src, "-C", dst])
+    for p in (shutil.which("UnRAR"),
+              os.path.join(os.environ.get("ProgramFiles", ""), "WinRAR",
+                           "UnRAR.exe")):
+        if p and os.path.isfile(p):
+            tools.append(lambda src, dst, p=p: [p, "x", "-o+", "-y", src,
+                                                dst + os.sep])
+            break
+    for p in (shutil.which("7z"),
+              os.path.join(os.environ.get("ProgramFiles", ""), "7-Zip",
+                           "7z.exe")):
+        if p and os.path.isfile(p):
+            tools.append(lambda src, dst, p=p: [p, "x", "-y", "-o" + dst, src])
+            break
+    return tools
+
+
+def archive_names(path):
+    """Dateinamen im Archiv, ohne zu entpacken. None = nicht lesbar."""
+    try:
+        if os.path.splitext(path)[1].lower() == ".zip":
+            import zipfile
+            with zipfile.ZipFile(path) as z:
+                return z.namelist()
+        tar = _windows_tar()
+        if tar:
+            import subprocess
+            res = subprocess.run([tar, "-tf", path], capture_output=True,
+                                 timeout=60, creationflags=0x08000000)
+            if res.returncode != 0:
+                return None
+            return res.stdout.decode("utf-8", "replace").splitlines()
+    except Exception:
+        return None
+    return None
+
+
+def archive_has_pack(path):
+    """
+    Steckt ein Dub-Pack drin (eine dub_video-Datei)? Unbekannt zaehlt als
+    ja - dann entscheidet das Entpacken.
+    """
+    names = archive_names(path)
+    if names is None:
+        return True
+    for n in names:
+        base = n.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1].lower()
+        if base.startswith("dub_video"):
+            return True
+    return False
+
+
+def extract_archive(path, log=None):
+    """
+    Entpackt ein Zip oder RAR nach archive_target(path) und gibt den Ordner
+    zurueck. Erst in einen .part-Ordner, damit ein Abbruch nichts Halbes
+    hinterlaesst.
+    """
+    target = archive_target(path)
+    if os.path.isdir(target):
+        return target
+    part = target + ".part"
+    shutil.rmtree(part, ignore_errors=True)
+    os.makedirs(part)
+    try:
+        if os.path.splitext(path)[1].lower() == ".zip":
+            _extract_zip(path, part)
+        else:
+            tools = _rar_tools()
+            if not tools:
+                raise RuntimeError("No program found that can open RAR "
+                                   "files (Windows tar, WinRAR or 7-Zip).")
+            err = None
+            for make in tools:
+                try:
+                    pc.run(make(path, part), log=log)
+                    err = None
+                    break
+                except Exception as ex:
+                    err = ex
+                    shutil.rmtree(part, ignore_errors=True)
+                    os.makedirs(part)
+            if err is not None:
+                raise err
+        os.replace(part, target)
+    except Exception:
+        shutil.rmtree(part, ignore_errors=True)
+        raise
+    return target
 
 
 # ==========================================================================
@@ -393,6 +630,16 @@ def render_dub(pack, sr=SR, duck=0.18, log=None):
     Zeilen ohne Aufnahme behalten das Original - so wie es der
     Dub-Guide fuer nicht gewaehlte Figuren beschreibt.
     """
+    voices, back = render_dub_parts(pack, sr, duck)
+    return normalize(voices + back, 0.97)
+
+
+def render_dub_parts(pack, sr=SR, duck=0.18):
+    """
+    Wie render_dub, aber Stimmen und Hintergrund getrennt (gleich lang,
+    nicht normalisiert) - damit der Hintergrund leiser gedreht werden kann.
+    Voices and background separately, so the background can be turned down.
+    """
     total = max(pack.video_duration, 0.1)
     for line in pack.lines:
         total = max(total, line.end + 1.0)
@@ -409,6 +656,7 @@ def render_dub(pack, sr=SR, duck=0.18, log=None):
         base[:min(n, len(original))] = original[:n]
         have_backing = False
 
+    voices = np.zeros(n, dtype=np.float32)
     for line in pack.lines:
         a = int(line.start * sr)
         if line.take is not None and len(line.take):
@@ -418,12 +666,24 @@ def render_dub(pack, sr=SR, duck=0.18, log=None):
                 b = min(n, a + max(len(take), int(line.duration * sr)))
                 base[a:b] *= duck
             b = min(n, a + len(take))
-            base[a:b] += take[:b - a]
+            voices[a:b] += take[:b - a]
         elif line.audio is not None and have_backing:
             b = min(n, a + len(line.audio))
-            base[a:b] += line.audio[:b - a] * 0.9
+            voices[a:b] += line.audio[:b - a] * 0.9
 
-    return normalize(base, 0.97)
+    return voices, base
+
+
+def mix_parts(voices, back, peak=0.97):
+    """
+    Skaliert Stimmen + Hintergrund so, dass die Summe bei gain=1 den
+    Spitzenwert erreicht. Liefert (voices, back) fertig zum Mischen.
+    """
+    voices = np.asarray(voices, dtype=np.float32)
+    back = fit_len(np.asarray(back, dtype=np.float32), len(voices))
+    m = float(np.max(np.abs(voices + back))) if len(voices) else 0.0
+    s = peak / m if m > 1e-6 else 1.0
+    return voices * s, back * s
 
 
 def export_dub_video(pack, mixed_audio, out_path, sr=SR, log=None):
@@ -469,6 +729,8 @@ class Mic(object):
         self._env = []                                  # Spitzenwerte je Fenster
         self._env_step = max(1, int(sr * ENV_MS / 1000.0))
         self._buf = np.zeros(0, dtype=np.float32)
+        self._out = None                                # Ausgabe von play_mix
+        self.back_gain = 1.0                            # Hintergrund, live
 
     @property
     def available(self):
@@ -483,8 +745,21 @@ class Mic(object):
                 out.append((i, d.get("name", "?")))
         return out
 
-    def start(self, playback=None, device=None):
-        """playback: Float-Array, das waehrend der Aufnahme laufen soll."""
+    def default_name(self):
+        """Name des Standard-Mikrofons von Windows, sonst ''."""
+        if not self.sd:
+            return ""
+        try:
+            return self.sd.query_devices(kind="input").get("name", "")
+        except Exception:
+            return ""
+
+    def start(self, playback=None, device=None, mix=False):
+        """
+        playback: Float-Array, das waehrend der Aufnahme laufen soll.
+        device None: das Standard-Mikrofon von Windows.
+        mix: playback ist Hintergrund und folgt back_gain (play_mix).
+        """
         if not self.sd:
             raise RuntimeError("sounddevice fehlt / missing")
         self._chunks = []
@@ -514,6 +789,9 @@ class Mic(object):
         self._stream = self.sd.InputStream(**kwargs)
         self._stream.start()
         if playback is not None and len(playback):
+            if mix:
+                self.play_mix(None, playback)
+                return
             try:
                 self.sd.play(np.asarray(playback, dtype=np.float32), self.sr)
             except Exception:
@@ -527,6 +805,7 @@ class Mic(object):
             except Exception:
                 pass
             self._stream = None
+        self._close_out()
         try:
             if self.sd:
                 self.sd.stop()
@@ -554,7 +833,50 @@ class Mic(object):
         except Exception:
             pass
 
+    def play_mix(self, voices, back):
+        """
+        Spielt Stimmen + Hintergrund (gleich lang, siehe mix_parts). Der
+        Hintergrund folgt back_gain live - der Regler wirkt sofort.
+        Plays voices + background; the background follows back_gain live.
+        """
+        if not self.sd or back is None:
+            return
+        self.stop_play()
+        back = np.asarray(back, dtype=np.float32)
+        voices = (np.zeros(len(back), dtype=np.float32) if voices is None
+                  else np.asarray(voices, dtype=np.float32))
+        back = fit_len(back, len(voices))
+        pos = [0]
+
+        def cb(outdata, frames, time_info, status):
+            a = pos[0]
+            b = min(len(voices), a + frames)
+            out = voices[a:b] + back[a:b] * self.back_gain
+            np.clip(out, -1.0, 1.0, out=out)
+            outdata[:b - a, 0] = out
+            outdata[b - a:] = 0
+            pos[0] = b
+            if b >= len(voices):
+                raise self.sd.CallbackStop
+
+        try:
+            self._out = self.sd.OutputStream(samplerate=self.sr, channels=1,
+                                             dtype="float32", callback=cb)
+            self._out.start()
+        except Exception:
+            self._out = None
+
+    def _close_out(self):
+        out, self._out = self._out, None
+        if out is not None:
+            try:
+                out.stop()
+                out.close()
+            except Exception:
+                pass
+
     def stop_play(self):
+        self._close_out()
         try:
             if self.sd:
                 self.sd.stop()

@@ -17,7 +17,7 @@ Dub scenes from video yourself. **DubForge** cuts a video into speakable clips, 
 1. Download **`DubStage-Setup-<version>.exe`** from the [releases page](https://github.com/xmrius/dubstage/releases/latest)
 2. Run it — no admin rights, no Python needed
 
-The setup brings its own Python with all packages, downloads ffmpeg, and lets you pick two optional parts: Demucs for vocal separation (pulls in PyTorch, up to ~2 GB — without it everything still works, just without a backing track) and speech recognition for automatic captions. Run the setup again at any time to add them.
+The setup brings its own Python with all packages, downloads ffmpeg, and lets you pick two optional parts: Demucs for vocal separation (pulls in PyTorch, up to ~2 GB — without it everything still works, just without a backing track) and speech recognition for automatic captions. It also downloads `cloudflared` (about 55 MB, ticked by default), which lets friends join multiplayer games without port forwarding. Run the setup again at any time to add any of them.
 
 Then start **DubForge** to build and **DubStage** to record — from the Start menu or the desktop.
 
@@ -135,9 +135,13 @@ Both curves share the same time axis, starting at zero of the clip. So you can s
 
 Each curve is normalised to its own loudness, so what you compare is rhythm, not level. If your take is too quiet, a note appears at the bottom right.
 
+Browser guests in a co-op game get the same strip.
+
 ## Microphone
 
 The menu has **Test**: records two seconds, shows the level, plays it back. If nothing arrives, pick a different device in the dropdown next to it.
+
+By default DubStage uses the **Windows default** microphone (first entry, with the device's name). Only a microphone you pick yourself is remembered. Browser players pick theirs in the lobby or under the record buttons.
 
 ## Frame rate
 
@@ -153,9 +157,78 @@ Allowed range is 8 to 30. The frames are regenerated the next time you open that
 
 ## Packs that do not show up
 
-The search covers the `packs` folder next to the tools. **Add folder** permanently adds any other folder.
+The search covers the `packs` folder next to the tools. **Add … → Folder with packs** permanently adds any other folder. It finds packs inside it, one level deeper (like the folder an unzipped pack usually comes in), or the folder itself if it is a pack.
+
+**Zip and RAR packs** don't need unpacking. Put the `.zip` or `.rar` into `packs` or into an added folder, or pick it directly with **Add … → Zip or RAR**. DubStage looks inside, unpacks archives that contain a `dub_video` once into `packs\_archives` (in the background, the menu says so) and lists them like any other pack. Other archives in the same folder (programs, shaders …) are left alone. A zip sitting next to a folder of the same name counts as already unpacked. RAR uses the `tar` that comes with Windows 10/11; WinRAR or 7-Zip work too if installed.
 
 For a folder to count as a pack it needs a **`dub_video`** (mp4, ogv, mkv, webm, mov or avi) and at least one clip with a timestamp in its file name.
+
+**Choicer Voicer packs** work as they are: drop the download (e.g. `pennywise_vs_groot.zip`) into `packs`, or add the zip or its unpacked folder. DubStage reads the start times, characters and captions from the `.txt` next to each clip and the title from `_pack_info.ini`. In multiplayer, Auto split hands out whole characters.
+
+---
+
+## Playing with friends (co-op)
+
+Dub one scene together: the host splits the lines between the players, everyone
+records their own lines on their own PC, and every take is sent to the others
+automatically. At the end everyone gets the whole scene with all voices.
+
+**Host:** pick a pack → **Host game** → enter your name. The lobby shows a
+**room code** and the address(es) to send your friends. Everyone who joins gets
+the pack from you automatically, so only share material you are allowed to share.
+
+Ways for friends to reach you, pick one:
+
+| Way | What to do |
+|---|---|
+| **Cloudflare quick tunnel** (easiest) | The setup installs `cloudflared` (otherwise `winget install Cloudflare.cloudflared`, or put `cloudflared.exe` into `tools\`). Tick **Start a Cloudflare quick tunnel**. Send the `…trycloudflare.com` address. No router setup. |
+| **VPN** (Tailscale, ZeroTier, Radmin VPN) | Everyone joins the same VPN; send your VPN IP with the port, e.g. `100.64.1.2:47800`. |
+| **Port forwarding** | Forward TCP port 47800 (or the one you chose) in your router to your PC and send your public IP, e.g. `203.0.113.5:47800`. |
+| **Same network** | Send the LAN address shown in the lobby. |
+
+When Windows asks whether Python may use the network, click **Allow**. This is
+needed for VPN, LAN and port forwarding. The tunnel works without it.
+
+**Join:** **Join game** → paste the address, enter the room code and your name.
+
+**Join in the browser (no install):** with the tunnel on, the lobby also shows a **browser link** that already contains the room code. Friends open it in Chrome, Edge or Firefox, enter a name and allow the microphone. They can record their lines with the same comparison strip as the app, listen to everyone's takes and watch the finale (saving the video is app-only). The page fills the whole window. Browsers only allow the microphone on https, so browser guests need the tunnel link; plain IP addresses work for the app only. The first time a pack is hosted, DubStage converts its video to a light MP4 for browsers in the background.
+
+**Lobby:** the right side lists who voices what, grouped by character (the name
+in the clip file names). All roles start free. Every player, in the app or the
+browser, clicks a free role to take it and clicks their own role to give it back.
+A role someone else holds can't be taken. The host has the last word: clicking a
+row cycles it through free and every player. **Auto split** hands out only the
+roles still free and leaves everyone's picks alone. **By line** switches to
+single lines. **Start** unlocks once every player has the pack. After that the
+roles are fixed, and lines nobody took keep the original voice.
+
+**Recording:** you can only record your own lines. The strip above the subtitle
+shows every line in its owner's colour, bright once it is recorded. Other
+players' lines can be listened to as soon as their take arrives. The hint at the
+bottom says whose lines are still missing. **Next** and **Back** jump between
+your own lines; click any line in the strip to look at or listen to it. The
+host can call everyone back to the **Lobby** to reassign lines; takes are kept.
+
+**Background volume:** every player has a **Background** slider (0–150 %) on
+the stage, in the waiting room and in the finale. It turns the backing track
+(music and effects; without one, the original video sound) up or down while it
+plays, including during recording, and only for you: other players and the
+takes you send are not affected. Turning it down before recording keeps less
+background in your mic. Saving the finale as a video uses your setting. The
+app and the browser remember it.
+
+**Ready and the finale:** on the last line the button says **Ready ✓**. It
+takes you to a waiting room that shows how far everyone is (lines recorded out
+of their own lines, ready or still recording). **Replay my lines** plays your
+takes over the video, and **Back to my lines** un-readies you so you can
+re-record anything. Once everyone is ready, every client fetches all takes and
+opens the finale with the whole scene. Takes are locked from then on, and
+everyone can play the scene or save it as a video. The host has **Finish now**
+in case someone is away.
+
+If someone leaves in the lobby, their roles become free again. During the game
+their lines go to the host. If the host closes the
+game, it ends for everyone.
 
 ---
 
