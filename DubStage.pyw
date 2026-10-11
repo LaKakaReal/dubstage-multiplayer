@@ -467,6 +467,7 @@ class Game(tk.Tk):
         self._embedded = []
         self.buttons = []
         self.chips = []
+        self._fit_cache = {}          # Text-Item -> (Text, Hoehe) schon eingepasst
         self._thumbs = {}             # Vorschaubilder im Menue / menu thumbnails
         self._thumb_jobs = set()
         self._thumb_redraw = False
@@ -541,6 +542,7 @@ class Game(tk.Tk):
         self._embedded = []
         self.buttons = []
         self.chips = []
+        self._fit_cache = {}
         self.cv.delete("all")
         self._photo = None
 
@@ -561,6 +563,32 @@ class Game(tk.Tk):
                                 w / 2 + rw, h * (0.16 + 0.30 * f),
                                 fill=lerp_color(BG_TOP, "#2a2f55", 0.5 - f * 0.5),
                                 outline="")
+
+    def _fit_text(self, item, text, max_h, size=16, min_size=10,
+                  family="Segoe UI Semibold"):
+        """
+        Setzt den Text und verkleinert die Schrift, bis er in max_h passt.
+        Reicht auch die kleinste nicht, wird er mit "…" gekuerzt.
+        """
+        cv = self.cv
+        if self._fit_cache.get(item) == (text, max_h):
+            return                       # unveraendert, nichts zu messen
+        cv.itemconfigure(item, text=text)
+
+        def fits():
+            box = cv.bbox(item)
+            return box is None or box[3] - box[1] <= max_h
+
+        for s in range(size, min_size - 1, -1):
+            cv.itemconfigure(item, font=(family, s))
+            if fits():
+                break
+        else:
+            words = text.split()
+            while len(words) > 1 and not fits():
+                words.pop()
+                cv.itemconfigure(item, text=" ".join(words) + " …")
+        self._fit_cache[item] = (text, max_h)
 
     def _btn(self, *a, **kw):
         b = Button(self.cv, *a, **kw)
@@ -1173,6 +1201,7 @@ class Game(tk.Tk):
 
         # Untertitel - das, was gesprochen werden soll
         cy = ty + 28
+        self.caption_h = 46          # bis knapp ueber den Zeilennamen
         self.caption_item = cv.create_text(
             vx + vw / 2, cy, anchor="n", text="", fill=GOLD,
             font=("Segoe UI Semibold", 16), width=vw - 40, justify="center")
@@ -1316,10 +1345,10 @@ class Game(tk.Tk):
                     self.line_time,
                     text="%s  –  %s" % (pc.fmt_time(line.start)[:-2],
                                         pc.fmt_time(line.end)[:-2]))
-                self.cv.itemconfigure(
-                    self.caption_item,
-                    text=line.caption or "",
-                    fill=GOLD if line.caption else DIM)
+                self.cv.itemconfigure(self.caption_item,
+                                      fill=GOLD if line.caption else DIM)
+                self._fit_text(self.caption_item, line.caption or "",
+                               self.caption_h)
             for i, l in enumerate(self.pack.lines):
                 if i >= len(self.chip_items):
                     break
@@ -1922,6 +1951,7 @@ class Game(tk.Tk):
         self.fin_caption = cv.create_text(
             vx + vw / 2, cy, anchor="n", text="", fill=GOLD,
             font=("Segoe UI Semibold", 16), width=vw - 40, justify="center")
+        self.fin_caption_h = 48
 
         py = cy + 56
         round_rect(cv, vx, py, vx + vw, py + 8, r=4, fill=PANEL_HI,
@@ -1983,8 +2013,8 @@ class Game(tk.Tk):
         f = min(1.0, elapsed / max(0.01, self._play["dur"]))
         try:
             self.cv.coords(self.prog_item, vx, py, vx + vw * f, py + 8)
-            self.cv.itemconfigure(self.fin_caption,
-                                  text=self._caption_at(elapsed))
+            self._fit_text(self.fin_caption, self._caption_at(elapsed),
+                           self.fin_caption_h)
         except Exception:
             traceback.print_exc()
         self.after(80, self._finale_progress)
@@ -1996,7 +2026,7 @@ class Game(tk.Tk):
             self.b_play.set_text("▶  " + t("play_all"))
             vx, py, _vw = self.prog_geo
             self.cv.coords(self.prog_item, vx, py, vx, py + 8)
-            self.cv.itemconfigure(self.fin_caption, text="")
+            self._fit_text(self.fin_caption, "", self.fin_caption_h)
 
     def export(self):
         os.makedirs(OUT_DIR, exist_ok=True)
@@ -2629,6 +2659,7 @@ class Game(tk.Tk):
         mine = [l for l in self.pack.lines
                 if self._net_mine(l) and l.take is not None]
         by = min(top + vh + 64, h - 76)
+        self.wait_caption_h = max(16, by - (top + vh + 18) - 6)
         self.b_replay = self._btn(vx, by, 230, 48, "▶  " + t("replay_mine"),
                                   self.replay_mine, "go",
                                   font=("Segoe UI Semibold", 12))
@@ -2674,8 +2705,8 @@ class Game(tk.Tk):
         line = queue_[i]
         dur = len(line.take) / float(ds.SR)
         self._set_phase("listen", dur)
-        self.cv.itemconfigure(self.wait_caption,
-                              text=line.caption or line.name)
+        self._fit_text(self.wait_caption, line.caption or line.name,
+                       self.wait_caption_h, size=13, min_size=9)
         try:
             self.mic.play(self._with_backing(line.take, line.start, 0.5))
         except Exception:

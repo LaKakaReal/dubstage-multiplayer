@@ -54,7 +54,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
 .badge{position:absolute;top:12px;right:12px;background:var(--red);color:#fff;border-radius:8px;padding:2px 10px;font-weight:700}
 .chips{display:flex;gap:3px;margin:12px 0 8px;cursor:pointer}
 .chips span{flex:1;height:10px;border-radius:5px;min-width:2px}
-.caption{text-align:center;color:var(--gold);font-size:18px;font-weight:600;min-height:52px;margin:6px 0}
+.caption{display:flex;align-items:center;justify-content:center;text-align:center;color:var(--gold);
+  font-size:20px;font-weight:600;line-height:1.25;height:68px;overflow:hidden;margin:6px 0;flex:none}
+.caption span{max-width:100%;overflow-wrap:anywhere}
 .lineinfo{display:flex;justify-content:space-between;font-size:13px;color:var(--dim)}
 .strip{position:relative;height:78px;background:#11141f;border:1px solid var(--edge);border-radius:10px;margin-top:8px}
 .strip canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
@@ -350,6 +352,7 @@ function fitVideos() {
     box.closest("section").style.setProperty("--vw", w + "px");
   }
   if (S.screen === "stage" && !S.play) drawStrip(null);
+  refitCaptions();
 }
 if (window.ResizeObserver) {
   const ro = new ResizeObserver(() => fitVideos());
@@ -735,7 +738,7 @@ function renderStage() {
   const n = S.lines.length, busy = S.phase !== "idle", has = S.takes.has(l.file), own = mine(l);
   const p = player(owner(l));
   $("lineOf").textContent = t("lineOf", S.i + 1, n);
-  $("caption").textContent = l.caption || "";
+  fitCaption($("caption"), l.caption || "");
   $("lineTitle").textContent = l.name + "   ·   " + t("voicedBy", p.name);
   $("lineTitle").style.color = p.color;
   $("lineTime").textContent = fmt(l.start) + " – " + fmt(l.start + l.duration);
@@ -850,6 +853,24 @@ function hintText() {
   }
   if (S.unsent.size) parts.push(t("unsent", S.unsent.size));
   return parts.join("   ·   ");
+}
+
+// Untertitel in seinen festen Kasten einpassen: erst kleiner, dann kuerzen
+function fitCaption(el, text) {
+  if (el.dataset.text === text && el.dataset.w === String(el.clientWidth)) return;
+  el.dataset.text = text; el.dataset.w = String(el.clientWidth);
+  const span = document.createElement("span");
+  span.textContent = text;
+  el.replaceChildren(span);
+  if (!text || !el.clientHeight) return;
+  let size = 20;
+  el.style.fontSize = size + "px";
+  while (span.offsetHeight > el.clientHeight && size > 11) el.style.fontSize = --size + "px";
+  const words = text.split(/\s+/);
+  while (span.offsetHeight > el.clientHeight && words.length > 1) { words.pop(); span.textContent = words.join(" ") + " …"; }
+}
+function refitCaptions() {
+  for (const id of ["caption", "wcaption", "fcaption"]) { const el = $(id); if (el.dataset.text) { const tx = el.dataset.text; delete el.dataset.text; fitCaption(el, tx); } }
 }
 
 function fmt(s) { const m = Math.floor(s / 60), r = s - m * 60; return m + ":" + (r < 10 ? "0" : "") + r.toFixed(1); }
@@ -1053,10 +1074,10 @@ async function replayMine() {
   const next = async stopped => {
     if (stopped || i >= list.length || S.screen !== "waiting") {
       S.phase = "idle"; $("replayIcon").textContent = "▶"; $("replayLabel").textContent = t("replayMine");
-      $("wcaption").textContent = ""; renderWaiting(); return;
+      fitCaption($("wcaption"), ""); renderWaiting(); return;
     }
     const l = list[i++], buf = S.takes.get(l.file);
-    $("wcaption").textContent = l.caption || l.name;
+    fitCaption($("wcaption"), l.caption || l.name);
     await playScene($("wvideo"), l.start, buf.duration,
       [{ buf, gain: takeGain(buf) * 0.95 }, backingPart(l.start, buf.duration, 0.5)].filter(Boolean),
       null, next);
@@ -1103,9 +1124,9 @@ async function toggleFinale() {
     $("fprog").style.width = Math.min(100, el / dur * 100) + "%";
     let cap = "";
     for (const l of S.lines) if (l.caption && el >= l.start - 0.2 && el <= l.start + Math.max(l.duration, 0.4) + 0.5) cap = l.caption;
-    $("fcaption").textContent = cap;
+    fitCaption($("fcaption"), cap);
   }, () => {
-    $("playLabel").textContent = t("play"); $("playIcon").textContent = "▶"; $("fprog").style.width = "0"; $("fcaption").textContent = "";
+    $("playLabel").textContent = t("play"); $("playIcon").textContent = "▶"; $("fprog").style.width = "0"; fitCaption($("fcaption"), "");
   });
 }
 
