@@ -234,6 +234,7 @@ T = {
     "voiced_by":  ("gesprochen von %s", "voiced by %s"),
     "their_take": ("Aufnahme anhören", "Play take"),
     "legend_their": ("Aufnahme von %s", "%s's take"),
+    "bg_vol":     ("Hintergrund", "Background"),
     "net_yours_left": ("deine fehlen noch: %d", "yours left: %d"),
     "net_waiting": ("warte auf %s", "waiting for %s"),
     "net_unsent": ("%d noch nicht gesendet", "%d not sent yet"),
@@ -389,6 +390,51 @@ class Button(object):
             self.refresh()
 
 
+class Slider(object):
+    """Selbstgezeichneter Schieberegler: Beschriftung, Spur, Prozentwert."""
+
+    def __init__(self, cv, x, y, w, label, value, lo, hi, on_change):
+        self.cv = cv
+        self.lo, self.hi = lo, hi
+        self.on_change = on_change
+        self.label = cv.create_text(x, y, anchor="w", text=label, fill=DIM,
+                                    font=("Segoe UI", 10))
+        lx1 = cv.bbox(self.label)[2]
+        self.x0, self.x1 = lx1 + 12, x + w - 46
+        self.y = y
+        self.box = (self.x0 - 8, y - 12, self.x1 + 8, y + 12)
+        cv.create_line(self.x0, y, self.x1, y, fill=PANEL_HI, width=4,
+                       capstyle="round")
+        self.fill = cv.create_line(self.x0, y, self.x0, y, fill=ACC, width=4,
+                                   capstyle="round")
+        self.knob = cv.create_oval(0, 0, 0, 0, fill=TXT, outline="")
+        self.text = cv.create_text(x + w, y, anchor="e", text="", fill=DIM,
+                                   font=("Consolas", 10))
+        self.set(value)
+
+    def set(self, value):
+        self.value = max(self.lo, min(self.hi, value))
+        f = (self.value - self.lo) / float(self.hi - self.lo)
+        kx = self.x0 + (self.x1 - self.x0) * f
+        self.cv.coords(self.fill, self.x0, self.y, kx, self.y)
+        self.cv.coords(self.knob, kx - 7, self.y - 7, kx + 7, self.y + 7)
+        self.cv.itemconfigure(self.text, text="%d%%" % round(self.value * 100))
+
+    def hit(self, x, y):
+        x0, y0, x1, y1 = self.box
+        return x0 <= x <= x1 and y0 <= y <= y1
+
+    def drag(self, x):
+        f = (x - self.x0) / float(max(1, self.x1 - self.x0))
+        v = self.lo + max(0.0, min(1.0, f)) * (self.hi - self.lo)
+        v = round(v / 0.05) * 0.05            # in 5-%-Schritten
+        if abs(v - 1.0) < 0.04:
+            v = 1.0                           # 100 % rastet ein
+        if v != self.value:
+            self.set(v)
+            self.on_change(self.value)
+
+
 # ==========================================================================
 class NetSession(object):
     """Eine laufende Mehrspieler-Runde / one running multiplayer game."""
@@ -449,6 +495,7 @@ class Game(tk.Tk):
         self.pack = None
         self.line_i = 0
         self.mix = None
+        self.mix_parts = None         # (Stimmen, Hintergrund) im Mehrspieler
         self.screen = "menu"
         self.phase = "idle"           # idle | listen | record | play
         self._phase_deadline = None
@@ -467,6 +514,8 @@ class Game(tk.Tk):
         self._embedded = []
         self.buttons = []
         self.chips = []
+        self.sliders = []
+        self._drag = None             # Regler, der gerade gezogen wird
         self._fit_cache = {}          # Text-Item -> (Text, Hoehe) schon eingepasst
         self._thumbs = {}             # Vorschaubilder im Menue / menu thumbnails
         self._thumb_jobs = set()
@@ -492,6 +541,8 @@ class Game(tk.Tk):
         self.cv.bind("<Configure>", self._on_resize)
         self.cv.bind("<Motion>", self._on_motion)
         self.cv.bind("<Button-1>", self._on_click)
+        self.cv.bind("<B1-Motion>", self._on_drag)
+        self.cv.bind("<ButtonRelease-1>", self._on_release)
         self.cv.bind("<MouseWheel>", self._on_wheel)
         self.bind("<Escape>", lambda e: self._on_escape())
         self.bind("<space>", lambda e: self._on_space())
@@ -542,6 +593,8 @@ class Game(tk.Tk):
         self._embedded = []
         self.buttons = []
         self.chips = []
+        self.sliders = []
+        self._drag = None
         self._fit_cache = {}
         self.cv.delete("all")
         self._photo = None
@@ -590,6 +643,17 @@ class Game(tk.Tk):
                 cv.itemconfigure(item, text=" ".join(words) + " …")
         self._fit_cache[item] = (text, max_h)
 
+    def _clip_line(self, item, text, max_w):
+        """Kuerzt einzeiligen Text mit "…", bis er in max_w passt."""
+        cv = self.cv
+        cv.itemconfigure(item, text=text)
+        while len(text) > 1:
+            x0, _y0, x1, _y1 = cv.bbox(item)
+            if x1 - x0 <= max_w:
+                break
+            text = text[:-1]
+            cv.itemconfigure(item, text=text.rstrip() + "…")
+
     def _btn(self, *a, **kw):
         b = Button(self.cv, *a, **kw)
         self.buttons.append(b)
@@ -623,6 +687,11 @@ class Game(tk.Tk):
             b.set_hover(b.enabled and b.hit(e.x, e.y))
 
     def _on_click(self, e):
+        for s in self.sliders:
+            if s.hit(e.x, e.y):
+                self._drag = s
+                s.drag(e.x)
+                return
         for b in self.buttons:
             if b.enabled and b.hit(e.x, e.y):
                 b.command()
@@ -643,6 +712,43 @@ class Game(tk.Tk):
                 if x0 <= e.x <= x1 and y0 <= e.y <= y1:
                     self._lobby_cycle(files)
                     return
+
+    def _on_drag(self, e):
+        if self._drag is not None:
+            self._drag.drag(e.x)
+
+    def _on_release(self, _e):
+        if self._drag is not None:
+            self._drag = None
+            save_cfg(self.cfg)
+
+    # ---------------------------------------- Hintergrund-Regler (Mehrspieler)
+    def _back_slider(self, right, y):
+        """Lautstaerke des Hintergrunds, rechtsbuendig bis x=right."""
+        if self.net is None:
+            return None
+        s = Slider(self.cv, right - 250, y, 250, t("bg_vol"),
+                   self.mic.back_gain, 0.0, 1.5, self._set_back_gain)
+        self.sliders.append(s)
+        return s
+
+    def _set_back_gain(self, value):
+        self.mic.back_gain = value
+        self.cfg["backing_vol"] = value
+
+    def _play_backed(self, audio, start, level):
+        """
+        Wie mic.play(_with_backing(...)), im Mehrspieler aber mit getrenntem
+        Hintergrund, damit der Regler live wirkt.
+        """
+        back = getattr(self.pack, "backing_audio", None)
+        audio = np.asarray(audio, dtype=np.float32)
+        if self.net is None or back is None or not len(audio):
+            self.mic.play(self._with_backing(audio, start, level))
+            return
+        seg = ds.fit_len(ds.slice_audio(back, start, len(audio) / float(ds.SR)),
+                         len(audio))
+        self.mic.play_mix(*ds.mix_parts(audio * 0.95, seg * level, 0.95))
 
     def _on_wheel(self, e):
         if self.screen == "lobby":
@@ -1168,11 +1274,16 @@ class Game(tk.Tk):
             self._btn(pad + 120, 24, 110, 38, t("lobby"),
                       self.net.room.back_to_lobby, "flat",
                       font=("Segoe UI", 11))
-        cv.create_text(w / 2, 43, text=self.pack.name, fill=TXT,
-                       font=("Segoe UI Semibold", 15))
+        title = cv.create_text(w / 2, 43, text=self.pack.name, fill=TXT,
+                               font=("Segoe UI Semibold", 15))
         self.hdr_count = cv.create_text(w - pad, 43, anchor="e", text="",
                                         fill=DIM,
                                         font=("Segoe UI Semibold", 12))
+        if self._back_slider(w - pad - 120, 43):
+            # Titel darf weder Knoepfe links noch den Regler rechts beruehren
+            left = pad + (240 if self.net.is_host else 120)
+            self._clip_line(title, self.pack.name,
+                            2 * min(w / 2 - left, w - pad - 390 - w / 2) - 24)
 
         # Videoflaeche
         top = 82
@@ -1720,7 +1831,7 @@ class Game(tk.Tk):
         self._set_phase("listen", line.duration)
         self.sync()
         try:
-            self.mic.play(self._with_backing(line.audio, line.start, 0.6))
+            self._play_backed(line.audio, line.start, 0.6)
         except Exception:
             traceback.print_exc()
             self._force_idle()
@@ -1735,7 +1846,7 @@ class Game(tk.Tk):
         self._set_phase("listen", dur)
         self.sync()
         try:
-            self.mic.play(self._with_backing(line.take, line.start, 0.5))
+            self._play_backed(line.take, line.start, 0.5)
         except Exception:
             traceback.print_exc()
             self._force_idle()
@@ -1785,7 +1896,8 @@ class Game(tk.Tk):
         if getattr(self.pack, "backing_audio", None) is not None:
             playback = ds.slice_audio(self.pack.backing_audio, line.start, dur)
         try:
-            self.mic.start(playback=playback, device=self._mic_device())
+            self.mic.start(playback=playback, device=self._mic_device(),
+                           mix=self.net is not None)
         except Exception as ex:
             self._force_idle()
             messagebox.showerror(t("err"), str(ex))
@@ -1901,7 +2013,12 @@ class Game(tk.Tk):
         self._set_phase("idle")
         self._stop_audio()
         try:
-            mix = ds.render_dub(self.pack)
+            if self.net:
+                # Stimmen und Hintergrund getrennt - fuer den Regler
+                parts = ds.mix_parts(*ds.render_dub_parts(self.pack))
+                mix = ds.normalize(parts[0] + parts[1], 0.97)
+            else:
+                parts, mix = None, ds.render_dub(self.pack)
         except Exception as ex:
             # z.B. Video ohne Tonspur und kein Backing Track - dann auf der
             # Buehne bleiben, statt mit halb gezeichnetem Finale zu haengen.
@@ -1910,6 +2027,7 @@ class Game(tk.Tk):
             return
         self.screen = "finale"
         self.mix = mix
+        self.mix_parts = parts
         self._clear_canvas()
         self._backdrop()
         cv = self.cv
@@ -1925,6 +2043,7 @@ class Game(tk.Tk):
                       self.back_to_stage, "flat", font=("Segoe UI", 11))
         cv.create_text(w / 2, 46, text=t("finale"), fill=TXT,
                        font=("Segoe UI Black", 26))
+        self._back_slider(w - pad, 43)
         done = sum(1 for l in self.pack.lines
                    if l.take is not None and len(l.take))
         cv.create_text(w / 2, 76, fill=DIM, font=("Segoe UI", 11),
@@ -1991,7 +2110,10 @@ class Game(tk.Tk):
             return
         self._set_phase("play", len(self.mix) / float(ds.SR))
         self.b_play.set_text("■  " + t("stop"))
-        self.mic.play(self.mix)
+        if self.mix_parts is not None:
+            self.mic.play_mix(*self.mix_parts)
+        else:
+            self.mic.play(self.mix)
         self._play_from(0.0, len(self.mix) / float(ds.SR), self._finale_stop)
         self._finale_progress()
 
@@ -2041,8 +2163,14 @@ class Game(tk.Tk):
         self.cv.itemconfigure(self.fin_msg, text=t("saving"), fill=GOLD)
         self.update_idletasks()
 
+        mix = self.mix
+        if self.mix_parts is not None:
+            # Export mit dem eingestellten Hintergrund
+            v, b = self.mix_parts
+            mix = ds.normalize(v + b * self.mic.back_gain, 0.97)
+
         def work():
-            ds.export_dub_video(self.pack, self.mix, path)
+            ds.export_dub_video(self.pack, mix, path)
 
         def done():
             self.b_save.set_enabled(True)
@@ -2308,12 +2436,14 @@ class Game(tk.Tk):
 
     def _net_begin(self, s):
         self.net = s
+        self.mic.back_gain = float(self.cfg.get("backing_vol", 1.0))
         self.lobby_scroll = 0
         s.client.start_polling(
             lambda kind, payload: self.msgq.put((kind, (s, payload))))
 
     def _net_close(self, wait=False):
         s, self.net = self.net, None
+        self.mic.back_gain = 1.0      # Einzelspieler: wie immer
         if s is None:
             return
         if wait:
@@ -2600,6 +2730,7 @@ class Game(tk.Tk):
                   "flat", font=("Segoe UI", 11))
         cv.create_text(w / 2, 44, text=t("wait_title"), fill=TXT,
                        font=("Segoe UI Black", 24))
+        self._back_slider(w - pad, 43)
         cv.create_text(w / 2, 76, text=t("wait_sub"), fill=DIM,
                        font=("Segoe UI", 11))
 
@@ -2708,7 +2839,7 @@ class Game(tk.Tk):
         self._fit_text(self.wait_caption, line.caption or line.name,
                        self.wait_caption_h, size=13, min_size=9)
         try:
-            self.mic.play(self._with_backing(line.take, line.start, 0.5))
+            self._play_backed(line.take, line.start, 0.5)
         except Exception:
             traceback.print_exc()
         self._play_from(line.start, dur,
