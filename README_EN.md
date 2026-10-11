@@ -157,11 +157,13 @@ Allowed range is 8 to 30. The frames are regenerated the next time you open that
 
 ## Packs that do not show up
 
-The search covers the `packs` folder next to the tools. **Add folder** permanently adds any other folder. It finds packs inside it, one level deeper (like the folder an unzipped pack usually comes in), or the folder itself if it is a pack.
+The search covers the `packs` folder next to the tools. **Add … → Folder with packs** permanently adds any other folder. It finds packs inside it, one level deeper (like the folder an unzipped pack usually comes in), or the folder itself if it is a pack.
+
+**Zip and RAR packs** don't need unpacking. Put the `.zip` or `.rar` into `packs` or into an added folder, or pick it directly with **Add … → Zip or RAR**. DubStage looks inside, unpacks archives that contain a `dub_video` once into `packs\_archives` (in the background, the menu says so) and lists them like any other pack. Other archives in the same folder (programs, shaders …) are left alone. A zip sitting next to a folder of the same name counts as already unpacked. RAR uses the `tar` that comes with Windows 10/11; WinRAR or 7-Zip work too if installed.
 
 For a folder to count as a pack it needs a **`dub_video`** (mp4, ogv, mkv, webm, mov or avi) and at least one clip with a timestamp in its file name.
 
-**Choicer Voicer packs** work as they are: unzip one (e.g. `pennywise_vs_groot.zip`) into `packs`, or add its folder. DubStage reads the start times, characters and captions from the `.txt` next to each clip and the title from `_pack_info.ini`. In multiplayer, Auto split hands out whole characters.
+**Choicer Voicer packs** work as they are: drop the download (e.g. `pennywise_vs_groot.zip`) into `packs`, or add the zip or its unpacked folder. DubStage reads the start times, characters and captions from the `.txt` next to each clip and the title from `_pack_info.ini`. In multiplayer, Auto split hands out whole characters.
 
 ---
 

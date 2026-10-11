@@ -156,11 +156,13 @@ Erlaubt sind 8 bis 30. Die Bilder werden beim nächsten Öffnen des Packs neu er
 
 ## Packs, die nicht auftauchen
 
-Gesucht wird im Ordner `packs` neben den Tools. Über **Ordner hinzufügen** lässt sich jeder weitere Ordner dauerhaft mit durchsuchen. Gefunden werden Packs darin, eine Ebene tiefer (wie im Ordner eines entpackten Zips) oder der Ordner selbst, wenn er ein Pack ist.
+Gesucht wird im Ordner `packs` neben den Tools. Über **Hinzufügen … → Ordner mit Packs** lässt sich jeder weitere Ordner dauerhaft mit durchsuchen. Gefunden werden Packs darin, eine Ebene tiefer (wie im Ordner eines entpackten Zips) oder der Ordner selbst, wenn er ein Pack ist.
+
+**Zip- und RAR-Packs** muss man nicht entpacken. Die `.zip` oder `.rar` nach `packs` oder in einen hinzugefügten Ordner legen oder direkt über **Hinzufügen … → Zip oder RAR** wählen. DubStage schaut hinein, entpackt Archive mit einem `dub_video` einmalig nach `packs\_archives` (im Hintergrund, das Menü zeigt es an) und listet sie wie jedes andere Pack. Andere Archive im selben Ordner (Programme, Shader …) bleiben unberührt. Liegt neben einem Zip ein gleichnamiger Ordner, gilt es als schon entpackt. RAR nutzt das `tar` von Windows 10/11; WinRAR oder 7-Zip gehen auch, falls installiert.
 
 Damit ein Ordner als Pack zählt, braucht er ein **`dub_video`** (mp4, ogv, mkv, webm, mov oder avi) und mindestens einen Clip mit Zeitstempel im Dateinamen.
 
-**Choicer-Voicer-Packs** laufen unverändert: einen entpacken (z. B. `pennywise_vs_groot.zip`) und nach `packs` legen oder seinen Ordner hinzufügen. DubStage liest Startzeiten, Figuren und Untertitel aus der `.txt` neben jedem Clip und den Titel aus `_pack_info.ini`. Im Mehrspieler verteilt *Automatisch aufteilen* ganze Figuren.
+**Choicer-Voicer-Packs** laufen unverändert: den Download (z. B. `pennywise_vs_groot.zip`) nach `packs` legen oder das Zip bzw. seinen entpackten Ordner hinzufügen. DubStage liest Startzeiten, Figuren und Untertitel aus der `.txt` neben jedem Clip und den Titel aus `_pack_info.ini`. Im Mehrspieler verteilt *Automatisch aufteilen* ganze Figuren.
 
 ---
 

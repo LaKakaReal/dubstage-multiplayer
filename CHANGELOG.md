@@ -40,6 +40,11 @@ versioning follows [Semantic Versioning](https://semver.org/).
   uses it.
 - **Browser guests get the comparison strip:** the original line as a
   silhouette, their take on top, drawn live while recording.
+- **Zip and RAR packs.** Archives in `packs`, in an added folder, or picked
+  with *Add … → Zip or RAR* are checked for a `dub_video`, unpacked once into
+  `packs/_archives` in the background and listed like any pack. Other
+  archives are left alone. RAR uses Windows' built-in `tar` (WinRAR or 7-Zip
+  as fallback), so no new dependency.
 - **The setup installs `cloudflared`** for multiplayer tunnels: an optional
   component of the installer (ticked in *Standard* and *Everything*) and an
   optional step in `Setup.bat`. It lands in `tools\` next to ffmpeg.
