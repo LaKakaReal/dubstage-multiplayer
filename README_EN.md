@@ -188,9 +188,13 @@ needed for VPN, LAN and port forwarding. The tunnel works without it.
 **Join in the browser (no install):** with the tunnel on, the lobby also shows a **browser link** that already contains the room code. Friends open it in Chrome, Edge or Firefox, enter a name and allow the microphone. They can record their lines, listen to everyone's takes and watch the finale (saving the video is app-only). Browsers only allow the microphone on https, so browser guests need the tunnel link; plain IP addresses work for the app only. The first time a pack is hosted, DubStage converts its video to a light MP4 for browsers in the background.
 
 **Lobby:** the right side lists who voices what, grouped by character (the name
-in the clip file names). The host clicks a row to hand it to the next player, or
-uses **Auto split**. **By line** switches to single lines. **Start** unlocks once
-every player has the pack.
+in the clip file names). All roles start free. Every player, in the app or the
+browser, clicks a free role to take it and clicks their own role to give it back.
+A role someone else holds can't be taken. The host has the last word: clicking a
+row cycles it through free and every player. **Auto split** hands out only the
+roles still free and leaves everyone's picks alone. **By line** switches to
+single lines. **Start** unlocks once every player has the pack. After that the
+roles are fixed, and lines nobody took keep the original voice.
 
 **Recording:** you can only record your own lines. The strip above the subtitle
 shows every line in its owner's colour, bright once it is recorded. Other
@@ -199,7 +203,8 @@ bottom says whose lines are still missing. The host can call everyone back to
 the **Lobby** to reassign lines; takes are kept. **Done** opens the finale,
 which every player renders on their own PC and can save as a video.
 
-If someone leaves, their lines go back to the host. If the host closes the
+If someone leaves in the lobby, their roles become free again. During the game
+their lines go to the host. If the host closes the
 game, it ends for everyone.
 
 ---

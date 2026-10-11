@@ -187,9 +187,14 @@ braucht es für VPN, LAN und Portfreigabe. Der Tunnel geht auch ohne.
 **Im Browser beitreten (ohne Installation):** Mit Tunnel zeigt die Lobby zusätzlich einen **Browser-Link**, in dem der Raumcode schon steckt. Freunde öffnen ihn in Chrome, Edge oder Firefox, geben einen Namen ein und erlauben das Mikrofon. Sie können ihre Zeilen aufnehmen, alle Aufnahmen anhören und das Finale ansehen (als Video speichern geht nur in der App). Browser erlauben das Mikrofon nur über https – Browser-Gäste brauchen also den Tunnel-Link, reine IP-Adressen gehen nur mit der App. Beim ersten Hosten eines Packs wandelt DubStage dessen Video im Hintergrund in ein leichtes MP4 für Browser um.
 
 **Lobby:** Rechts steht, wer was spricht, nach Figuren gruppiert (der Name in
-den Clip-Dateinamen). Der Host klickt eine Zeile an, um sie dem nächsten
-Spieler zu geben, oder nimmt **Automatisch aufteilen**. **Nach Zeilen** zeigt
-einzelne Zeilen. **Los geht's** geht, sobald alle den Pack haben.
+den Clip-Dateinamen). Alle Rollen sind anfangs frei. Jeder, ob in der App oder
+im Browser, klickt eine freie Rolle an, um sie zu nehmen, und die eigene, um
+sie wieder abzugeben. Rollen anderer lassen sich nicht wegnehmen. Der Host hat
+das letzte Wort: Ein Klick reicht die Rolle reihum weiter (frei → jeder
+Spieler). **Automatisch aufteilen** verteilt nur die noch freien Rollen und
+lässt die gewählten in Ruhe. **Nach Zeilen** zeigt einzelne Zeilen. **Los
+geht's** geht, sobald alle den Pack haben. Danach steht die Verteilung fest;
+Zeilen, die niemand genommen hat, behalten die Originalstimme.
 
 **Aufnehmen:** Aufnehmen kannst du nur deine eigenen Zeilen. Die Leiste über
 dem Untertitel zeigt jede Zeile in der Farbe ihres Sprechers, hell, sobald sie
@@ -198,7 +203,8 @@ Unten steht, wessen Zeilen noch fehlen. Der Host kann alle zurück in die
 **Lobby** holen und neu verteilen; Aufnahmen bleiben erhalten. **Fertig**
 öffnet das Finale, das jeder bei sich rendert und als Video speichern kann.
 
-Geht jemand, fallen seine Zeilen an den Host zurück. Beendet der Host, ist das
+Geht jemand in der Lobby, werden seine Rollen wieder frei; im laufenden Spiel
+übernimmt der Host. Beendet der Host, ist das
 Spiel für alle vorbei.
 
 ---

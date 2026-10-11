@@ -16,6 +16,9 @@ versioning follows [Semantic Versioning](https://semver.org/).
   sent to guests automatically. Works over a Cloudflare quick tunnel
   (`cloudflared`), a VPN, port forwarding or the local network. Plain HTTP
   only, no new dependencies.
+  Roles start free: every player picks or gives back roles in the lobby
+  (app or browser), the host can override, and *Auto split* only fills
+  the roles nobody picked.
 - **Choicer Voicer packs play in DubStage.** Start times, characters and
   captions come from each clip's `.txt` (multi-line captions included), the
   title from `_pack_info.ini`; MP3 clips, `_backing_track.mp3` and
