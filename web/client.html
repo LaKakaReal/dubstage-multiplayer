@@ -40,6 +40,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
 .plist div,.roles div{display:flex;align-items:center;gap:10px;padding:6px 0}
 .roles div{background:var(--panel-hi);border-radius:10px;padding:8px 12px;margin-bottom:6px}
 .roles .bar{width:5px;align-self:stretch;border-radius:3px}
+.roles .pick{cursor:pointer} .roles .pick:hover{background:var(--edge)}
 .right{margin-left:auto}
 #join{max-width:420px;margin:8vh auto 0}
 .video{position:relative;background:#05060a;border:1px solid var(--edge);border-radius:16px;overflow:hidden;aspect-ratio:16/9}
@@ -93,6 +94,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
     </div>
     <div class="card">
       <h2 data-t="roles"></h2>
+      <p class="muted" style="font-size:13px;margin:-6px 0 10px" data-t="rolesPick"></p>
       <div id="roles" class="roles"></div>
     </div>
   </div>
@@ -164,6 +166,9 @@ const T = {
     needHttps: "Your browser only allows the microphone on https addresses. Ask the host for the …trycloudflare.com link.",
     appHint: "Have the DubStage app? You can also join from there with Join game.",
     lobby: "Lobby", players: "Players", roles: "Who voices what",
+    rolesPick: "Click a free role to take it, click yours to give it back.",
+    free: "free", takeRole: "Take this role", giveRole: "Give this role back",
+    roleTaken: "Someone already has that role.",
     you: "you", host: "host", ready: "ready", offline: "offline", loading: "loading %",
     waitHost: "Waiting for the host to start …", loadingPack: "Loading the scene …",
     micOk: "Microphone: allowed", micAsk: "Microphone: your browser will ask when you join.",
@@ -187,6 +192,9 @@ const T = {
     needHttps: "Dein Browser erlaubt das Mikrofon nur auf https-Adressen. Frag den Host nach dem …trycloudflare.com-Link.",
     appHint: "Du hast die DubStage-App? Dort geht es auch über Beitreten.",
     lobby: "Lobby", players: "Spieler", roles: "Wer spricht was",
+    rolesPick: "Freie Rolle anklicken zum Nehmen, eigene zum Abgeben.",
+    free: "frei", takeRole: "Rolle nehmen", giveRole: "Rolle abgeben",
+    roleTaken: "Diese Rolle hat schon jemand.",
     you: "du", host: "Host", ready: "bereit", offline: "offline", loading: "lädt %",
     waitHost: "Warte auf den Host …", loadingPack: "Szene wird geladen …",
     micOk: "Mikrofon: erlaubt", micAsk: "Mikrofon: der Browser fragt beim Beitreten.",
@@ -399,7 +407,8 @@ function onState(st) {
 
 const owner = l => S.state && S.state.owner[l.file];
 const mine = l => !!l && owner(l) === S.me;
-const player = pid => (S.state ? S.state.players.find(p => p.id === pid) : null) || { name: "?", color: "#8a92b4" };
+const player = pid => (pid && S.state ? S.state.players.find(p => p.id === pid) : null)
+  || { name: pid ? "?" : t("free"), color: "#8a92b4" };
 
 function applyTakes() {
   if (!S.ready || !S.state) return;
@@ -468,8 +477,15 @@ function renderLobby() {
     const groups = new Map();
     for (const l of S.lines) { if (!groups.has(l.name)) groups.set(l.name, []); groups.get(l.name).push(l); }
     for (const [name, ls] of groups) {
-      const owners = [...new Set(ls.map(l => owner(l)))].map(player);
+      const pids = [...new Set(ls.map(l => owner(l)))];
+      const owners = pids.map(player);
       const d = document.createElement("div");
+      // Freie Rolle nehmen, eigene abgeben - nur solange die Lobby offen ist
+      const take = pids.every(p => p === null || p === S.me) && !pids.every(p => p === S.me);
+      const give = pids.every(p => p === S.me);
+      d.classList.toggle("pick", take || give);
+      d.title = take ? t("takeRole") : give ? t("giveRole") : "";
+      d.onclick = () => claim(ls.map(l => l.file), take, take || give);
       d.innerHTML = `<span class="bar"></span><b></b><span class="muted" style="font-size:12px"></span><span class="right"></span>`;
       d.children[0].style.background = owners[0] ? owners[0].color : "var(--dim)";
       d.children[1].textContent = name;
@@ -480,6 +496,15 @@ function renderLobby() {
     }
   }
   $("lobbyMsg").textContent = S.trouble ? t("trouble") : (S.ready ? t("waitHost") : t("loadingPack"));
+  $("lobbyMsg").style.color = "";
+}
+
+async function claim(files, take, allowed) {
+  if (!S.state || S.state.phase !== "lobby") return;
+  const fail = msg => { $("lobbyMsg").textContent = msg; $("lobbyMsg").style.color = "var(--red)"; };
+  if (!allowed) { fail(t("roleTaken")); return; }
+  try { await api("POST", "/claim", { lines: files, take }); }
+  catch (e) { fail(/taken/.test(e.message) ? t("roleTaken") : e.message); }
 }
 
 // ======================================================================
@@ -588,7 +613,7 @@ function hintText() {
   if (left) parts.push(t("yoursLeft", left));
   else {
     const waiting = new Map();
-    for (const l of S.lines) if (!S.takes.has(l.file)) { const o = owner(l); waiting.set(o, (waiting.get(o) || 0) + 1); }
+    for (const l of S.lines) { const o = owner(l); if (!S.takes.has(l.file) && o) waiting.set(o, (waiting.get(o) || 0) + 1); }
     if (waiting.size) parts.push(t("waitingFor", [...waiting].map(([pid, c]) => player(pid).name + " (" + c + ")").join(", ")));
   }
   if (S.unsent.size) parts.push(t("unsent", S.unsent.size));
