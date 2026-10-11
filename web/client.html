@@ -124,15 +124,42 @@ header{display:flex;align-items:center;justify-content:space-between;gap:12px;ma
   <div class="nav">
     <button id="bPrev">‹ <span data-t="back"></span></button>
     <button id="bSkip" data-t="leaveEmpty"></button>
-    <button id="bNext" class="primary right"><span id="nextLabel" data-t="next"></span> ›</button>
+    <button id="bNext" class="primary right"><span id="nextLabel" data-t="next"></span></button>
   </div>
   <p id="hint" class="hint"></p>
+</section>
+
+<!-- ============================================================ Waiting -->
+<section id="waiting" class="hidden">
+  <header>
+    <button class="flat" data-act="leave">‹ <span data-t="leave"></span></button>
+    <div style="text-align:center"><h1 data-t="waitTitle"></h1><div class="muted" data-t="waitSub"></div></div>
+    <span style="width:70px"></span>
+  </header>
+  <div class="grid">
+    <div>
+      <div class="video"><video id="wvideo" muted playsinline preload="auto"></video></div>
+      <div id="wcaption" class="caption"></div>
+    </div>
+    <div class="card"><h2 data-t="players"></h2><div id="wplayers" class="plist"></div></div>
+  </div>
+  <div class="row" style="margin-top:14px">
+    <button id="bReplay" class="go"><span id="replayIcon">▶</span> <span id="replayLabel" data-t="replayMine"></span></button>
+    <button id="bBackMine">‹ <span data-t="backMine"></span></button>
+  </div>
+  <p id="wmsg" class="hint"></p>
+</section>
+
+<!-- ========================================================== Assembling -->
+<section id="assembling" class="hidden card" style="max-width:460px;margin:12vh auto 0;text-align:center">
+  <h1 data-t="assembling"></h1>
+  <p id="amsg" class="muted"></p>
 </section>
 
 <!-- ============================================================ Finale -->
 <section id="finale" class="hidden">
   <header>
-    <button class="flat" id="bBackLines">‹ <span data-t="backLines"></span></button>
+    <button class="flat" data-act="leave">‹ <span data-t="leave"></span></button>
     <h1 data-t="yourScene"></h1>
     <span style="width:70px"></span>
   </header>
@@ -181,6 +208,12 @@ const T = {
     videoPrep: "The host is preparing the video for browsers …",
     yourScene: "Your scene", backLines: "Back to the lines", play: "Play", stop: "Stop",
     newTakes: "New takes arrived – press Play again to hear them.",
+    ready: "Ready ✓", waitTitle: "Waiting for the others",
+    waitSub: "Once everyone is ready, the scene is put together.",
+    linesDone: "%1 / %2 lines", stDone: "ready ✓", stWorking: "still recording",
+    replayMine: "Replay my lines", backMine: "Back to my lines",
+    assembling: "Putting the scene together …", assemblingN: "%1 of %2 takes here",
+    noTakesMine: "You haven't recorded anything yet.",
     ended: "Game over", hostEnded: "The host ended the game.", lost: "Lost the connection to the host.",
     again: "Join again", leaveQ: "Leave the game? Your takes stay with the host.",
     badCode: "Wrong room code.", noReach: "Cannot reach the host.",
@@ -207,6 +240,12 @@ const T = {
     videoPrep: "Der Host bereitet das Video für Browser vor …",
     yourScene: "Deine Szene", backLines: "Zurück zu den Zeilen", play: "Abspielen", stop: "Stopp",
     newTakes: "Neue Aufnahmen sind da – nochmal Abspielen, um sie zu hören.",
+    ready: "Bereit ✓", waitTitle: "Warten auf die anderen",
+    waitSub: "Sobald alle bereit sind, wird die Szene zusammengesetzt.",
+    linesDone: "%1 / %2 Zeilen", stDone: "bereit ✓", stWorking: "nimmt noch auf",
+    replayMine: "Meine Zeilen abspielen", backMine: "Zurück zu meinen Zeilen",
+    assembling: "Szene wird zusammengesetzt …", assemblingN: "%1 von %2 Aufnahmen da",
+    noTakesMine: "Du hast noch nichts aufgenommen.",
     ended: "Spiel vorbei", hostEnded: "Der Host hat das Spiel beendet.", lost: "Verbindung zum Host verloren.",
     again: "Neu beitreten", leaveQ: "Spiel verlassen? Deine Aufnahmen bleiben beim Host.",
     badCode: "Falscher Raumcode.", noReach: "Host nicht erreichbar.",
@@ -239,13 +278,13 @@ const S = {
   clips: new Map(), takes: new Map(), revs: new Map(),
   unsent: new Map(), fetching: new Set(),
   backing: null, ctx: null, stream: null,
-  phase: "idle", screen: "join", trouble: false, polling: false, ready: false,
+  phase: "idle", screen: "join", trouble: false, polling: false, ready: false, wantDone: false,
   play: null, videoReady: false,
 };
 
 function show(screen) {
   S.screen = screen;
-  for (const id of ["join", "lobby", "stage", "finale", "ended"])
+  for (const id of ["join", "lobby", "stage", "waiting", "assembling", "finale", "ended"])
     $(id).classList.toggle("hidden", id !== screen);
 }
 
@@ -381,7 +420,7 @@ async function waitVideo() {
     } catch (e) {}
     await new Promise(r => setTimeout(r, 3000));
   }
-  for (const v of [$("video"), $("fvideo")]) v.src = media("/media/video");
+  for (const v of [$("video"), $("wvideo"), $("fvideo")]) v.src = media("/media/video");
   S.videoReady = true; refresh();
 }
 
@@ -434,7 +473,7 @@ async function fetchTake(f, rev) {
   S.fetching.delete(f);
   const cur = S.state.takes[f];
   if (cur && cur.rev !== rev) fetchTake(f, cur.rev);
-  refresh();
+  followPhase(); refresh();
 }
 
 function followPhase() {
@@ -443,15 +482,27 @@ function followPhase() {
   if (ph === "recording" && S.screen === "lobby") {
     const first = S.lines.findIndex(l => mine(l) && !S.takes.has(l.file));
     S.i = Math.max(0, first); show("stage"); renderStage();
-  } else if (ph === "lobby" && (S.screen === "stage" || S.screen === "finale")) {
+  } else if (ph === "lobby" && ["stage", "waiting", "assembling", "finale"].includes(S.screen)) {
     if (S.phase === "record" || S.phase === "countdown") { setTimeout(followPhase, 500); return; }
-    stopPlay(); show("lobby"); renderLobby();
+    S.wantDone = false; stopPlay(); show("lobby"); renderLobby();
+  } else if (ph === "finale" && S.screen !== "finale") {
+    if (S.phase === "record" || S.phase === "countdown") { setTimeout(followPhase, 500); return; }
+    stopPlay(); S.phase = "idle";
+    if (takesComplete()) openFinale(); else { show("assembling"); renderAssembling(); }
   }
+}
+
+// Liegen alle Aufnahmen vom Host auch hier?
+function takesComplete() {
+  return !S.fetching.size && Object.entries(S.state.takes)
+    .every(([f, info]) => S.revs.get(f) === info.rev || S.unsent.has(f));
 }
 
 function refresh() {
   if (S.screen === "lobby") renderLobby();
   else if (S.screen === "stage") renderStage();
+  else if (S.screen === "waiting" && !S.play) renderWaiting();
+  else if (S.screen === "assembling") renderAssembling();
 }
 
 // ======================================================================
@@ -589,7 +640,7 @@ function renderStage() {
   $("bPrev").disabled = busy || S.i === 0;
   $("bSkip").disabled = busy || !has || !own;
   $("bNext").disabled = busy;
-  $("nextLabel").textContent = S.i >= n - 1 ? t("done") : t("next");
+  $("nextLabel").textContent = S.i >= n - 1 ? t("ready") : t("next") + " ›";
   // Leiste
   const chips = $("chips");
   if (chips.children.length !== n) {
@@ -724,9 +775,10 @@ async function send(file, buf) {
     else await api("DELETE", "/take/" + enc(file));
     const u = S.unsent.get(file);
     if (u && u.op === op && u.buf === buf) S.unsent.delete(file);
+    pushDone();
   } catch (e) {
     const u = S.unsent.get(file);
-    if (/not your line|unknown line/.test(e.message)) S.unsent.delete(file);
+    if (/not your line|unknown line|game finished/.test(e.message)) S.unsent.delete(file);
     else if (u && u.buf === buf) u.failed = true;
   }
   refresh();
@@ -740,6 +792,77 @@ function retryUnsent() {
 function clearTake() {
   const l = line(); if (S.phase !== "idle" || !mine(l) || !S.takes.has(l.file)) return;
   S.takes.delete(l.file); send(l.file, null);
+}
+
+// ======================================================================
+//  Bereit und warten / ready and waiting
+// ======================================================================
+function ready() {
+  stopPlay(); S.phase = "idle"; S.wantDone = true;
+  show("waiting"); renderWaiting(); pushDone();
+}
+
+// Erst wenn alle eigenen Aufnahmen beim Host sind - sonst beginnt das
+// Finale womoeglich ohne die letzte.
+function pushDone() {
+  if (S.wantDone && !S.unsent.size) api("POST", "/done", { done: true }).catch(() => {});
+}
+
+function backToLines() {
+  stopPlay(); S.phase = "idle"; S.wantDone = false;
+  api("POST", "/done", { done: false }).catch(() => {});
+  show("stage"); renderStage();
+}
+
+const myTakes = () => S.lines.filter(l => mine(l) && S.takes.has(l.file));
+
+function renderWaiting() {
+  const st = S.state; if (!st) return;
+  $("wplayers").innerHTML = "";
+  for (const p of st.players.filter(p => !p.left)) {
+    const own = Object.entries(st.owner).filter(([, o]) => o === p.id);
+    const got = own.filter(([f]) => f in st.takes).length;
+    const status = !p.online ? t("offline") : p.done ? t("stDone") : t("stWorking");
+    const d = document.createElement("div");
+    d.innerHTML = `<span class="dot"></span><div><b></b><div class="sub" style="font-size:13px"></div></div>`;
+    d.children[0].style.background = p.color;
+    d.querySelector("b").textContent = p.name + (p.id === S.me ? "  (" + t("you") + ")" : "");
+    const line2 = d.querySelector(".sub");
+    line2.textContent = t("linesDone", got, own.length) + "   ·   " + status;
+    line2.style.color = !p.online ? "var(--red)" : p.done ? "var(--teal)" : "var(--gold)";
+    $("wplayers").appendChild(d);
+  }
+  const mineList = myTakes();
+  $("bReplay").disabled = !mineList.length;
+  $("wmsg").textContent = S.trouble ? t("trouble") : S.unsent.size ? t("unsent", S.unsent.size)
+    : mineList.length ? "" : t("noTakesMine");
+  if (mineList.length && S.videoReady && !S.play) $("wvideo").currentTime = mineList[0].start;
+}
+
+async function replayMine() {
+  if (S.play || S.phase !== "idle") { stopPlay(); return; }
+  const list = myTakes(); if (!list.length) return;
+  S.phase = "listen";
+  $("replayIcon").textContent = "■"; $("replayLabel").textContent = t("stop");
+  let i = 0;
+  const next = async stopped => {
+    if (stopped || i >= list.length || S.screen !== "waiting") {
+      S.phase = "idle"; $("replayIcon").textContent = "▶"; $("replayLabel").textContent = t("replayMine");
+      $("wcaption").textContent = ""; renderWaiting(); return;
+    }
+    const l = list[i++], buf = S.takes.get(l.file);
+    $("wcaption").textContent = l.caption || l.name;
+    await playScene($("wvideo"), l.start, buf.duration,
+      [{ buf, gain: takeGain(buf) * 0.95 }, backingPart(l.start, buf.duration, 0.5)].filter(Boolean),
+      null, next);
+  };
+  next(false);
+}
+
+function renderAssembling() {
+  const takes = Object.entries(S.state.takes);
+  const here = takes.filter(([f, info]) => S.revs.get(f) === info.rev || S.unsent.has(f)).length;
+  $("amsg").textContent = t("assemblingN", here, takes.length);
 }
 
 // ======================================================================
@@ -792,9 +915,10 @@ $("bRec").onclick = record;
 $("bTake").onclick = playTake;
 $("bSkip").onclick = clearTake;
 $("bPrev").onclick = () => goto(S.i - 1);
-$("bNext").onclick = () => { if (S.phase !== "idle") return; if (S.i >= S.lines.length - 1) openFinale(); else goto(S.i + 1); };
+$("bNext").onclick = () => { if (S.phase !== "idle") return; if (S.i >= S.lines.length - 1) ready(); else goto(S.i + 1); };
+$("bReplay").onclick = replayMine;
+$("bBackMine").onclick = backToLines;
 $("bPlay").onclick = toggleFinale;
-$("bBackLines").onclick = () => { stopPlay(); show("stage"); renderStage(); };
 document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT") return;
   if (S.screen === "stage") {
