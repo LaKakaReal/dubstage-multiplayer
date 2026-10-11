@@ -106,6 +106,18 @@ class ServerTests(unittest.TestCase):
             c.join("Eve")
         self.assertIn("room code", str(cm.exception))
 
+    def test_browser_gets_explanation_instead_of_error(self):
+        import urllib.request
+        with urllib.request.urlopen("http://%s/" % self.addr) as r:
+            self.assertEqual(r.status, 200)
+            self.assertIn("text/html", r.headers["Content-Type"])
+            self.assertIn("Join game", r.read().decode("utf-8"))
+        # Ohne Raumcode bleibt alles andere verschlossen
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            urllib.request.urlopen("http://%s/state" % self.addr)
+        self.assertEqual(cm.exception.code, 403)
+        cm.exception.close()
+
     def test_take_flows_between_players(self):
         a, b = self.client("Anna"), self.client("Anna")
         st = b.state()

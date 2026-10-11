@@ -507,6 +507,38 @@ class Room(object):
 #  HTTP-Server
 # ==========================================================================
 
+LANDING_PAGE = """<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DubStage game</title>
+<style>
+ body{margin:0;min-height:100vh;display:grid;place-items:center;
+  background:#0a0b12;color:#eef1ff;font:16px/1.5 "Segoe UI",system-ui,sans-serif}
+ main{max-width:520px;padding:32px 24px}
+ h1{margin:0 0 4px;font-size:26px}
+ p{color:#8a92b4} b{color:#ffc861}
+ ol{padding-left:20px} li{margin:6px 0}
+ hr{border:0;border-top:1px solid #333a5c;margin:24px 0}
+</style></head><body><main>
+<h1>A DubStage game is running here</h1>
+<p>This address is for the DubStage app, not the browser.</p>
+<ol>
+ <li>Open <b>DubStage</b> and click <b>Join game</b>.</li>
+ <li>Paste this page's address.</li>
+ <li>Enter the <b>room code</b> the host gave you, and your name.</li>
+</ol>
+<hr>
+<h1>Hier läuft ein DubStage-Spiel</h1>
+<p>Diese Adresse ist für die DubStage-App, nicht für den Browser.</p>
+<ol>
+ <li><b>DubStage</b> öffnen und <b>Beitreten</b> klicken.</li>
+ <li>Die Adresse dieser Seite einfügen.</li>
+ <li>Den <b>Raumcode</b> vom Host und deinen Namen eingeben.</li>
+</ol>
+</main></body></html>
+"""
+
+
 class _Handler(BaseHTTPRequestHandler):
     server_version = "DubStage"
     protocol_version = "HTTP/1.1"
@@ -553,6 +585,12 @@ class _Handler(BaseHTTPRequestHandler):
 
     # --- Methoden
     def do_GET(self):
+        if self.path.split("?", 1)[0] in ("/", "/index.html") \
+                and not self.headers.get("X-Room"):
+            # Jemand hat die Adresse im Browser geoeffnet - erklaeren statt 403.
+            self._send(200, LANDING_PAGE.encode("utf-8"),
+                       "text/html; charset=utf-8")
+            return
         if not self._authorized():
             return
         path = self.path.split("?", 1)[0]
