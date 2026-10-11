@@ -155,13 +155,13 @@ T = {
                    "bei – ohne Portfreigabe.",
                    "Friends then join via a …trycloudflare.com address – "
                    "no port forwarding needed."),
-    "tunnel_missing": ("cloudflared nicht gefunden. Installieren (winget "
-                       "install Cloudflare.cloudflared) oder cloudflared.exe "
-                       "in den tools-Ordner legen, um ohne Portfreigabe zu "
+    "tunnel_missing": ("cloudflared nicht gefunden. Das Setup erneut "
+                       "ausführen (cloudflared anhaken) oder winget install "
+                       "Cloudflare.cloudflared, um ohne Portfreigabe zu "
                        "spielen.",
-                       "cloudflared not found. Install it (winget install "
-                       "Cloudflare.cloudflared) or put cloudflared.exe into "
-                       "the tools folder to play without port forwarding."),
+                       "cloudflared not found. Run the setup again (tick "
+                       "cloudflared) or winget install Cloudflare.cloudflared "
+                       "to play without port forwarding."),
     "tunnel_fail": ("Der Cloudflare-Tunnel ließ sich nicht starten:\n%s\n\n"
                     "Das Spiel läuft trotzdem – Freunde brauchen dann deine "
                     "IP und eine Portfreigabe.",
