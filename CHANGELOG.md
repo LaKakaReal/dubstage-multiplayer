@@ -16,6 +16,11 @@ versioning follows [Semantic Versioning](https://semver.org/).
   sent to guests automatically. Works over a Cloudflare quick tunnel
   (`cloudflared`), a VPN, port forwarding or the local network. Plain HTTP
   only, no new dependencies.
+- **Choicer Voicer packs play in DubStage.** Start times, characters and
+  captions come from each clip's `.txt` (multi-line captions included), the
+  title from `_pack_info.ini`; MP3 clips, `_backing_track.mp3` and
+  `dub_video.ogv` are used as they are. A clip listed at several timestamps
+  becomes several lines.
 
 ## [1.3.0] - 2026-09-28
 

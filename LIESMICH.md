@@ -156,6 +156,8 @@ Gesucht wird im Ordner `packs` neben den Tools. Über **Ordner hinzufügen** lä
 
 Damit ein Ordner als Pack zählt, braucht er ein **`dub_video`** (mp4, ogv, mkv, webm, mov oder avi) und mindestens einen Clip mit Zeitstempel im Dateinamen.
 
+**Choicer-Voicer-Packs** laufen unverändert: einen entpacken (z. B. `pennywise_vs_groot.zip`) und nach `packs` legen oder seinen Ordner hinzufügen. DubStage liest Startzeiten, Figuren und Untertitel aus der `.txt` neben jedem Clip und den Titel aus `_pack_info.ini`. Im Mehrspieler verteilt *Automatisch aufteilen* ganze Figuren.
+
 ---
 
 ## Mit Freunden spielen (Koop)

@@ -157,6 +157,8 @@ The search covers the `packs` folder next to the tools. **Add folder** permanent
 
 For a folder to count as a pack it needs a **`dub_video`** (mp4, ogv, mkv, webm, mov or avi) and at least one clip with a timestamp in its file name.
 
+**Choicer Voicer packs** work as they are: unzip one (e.g. `pennywise_vs_groot.zip`) into `packs`, or add its folder. DubStage reads the start times, characters and captions from the `.txt` next to each clip and the title from `_pack_info.ini`. In multiplayer, Auto split hands out whole characters.
+
 ---
 
 ## Playing with friends (co-op)
