@@ -32,3 +32,17 @@ desktop.ini
 # Setup.exe-Build / installer build output
 build/
 dist/
+
+# Claude dookie
+CLAUDE.md
+
+# Baton Pass (local-only handoff state)
+.claude/settings.local.json
+.npm-cache/
+.tmp-*/
+baton-pass.config.json
+baton-pass.state.json
+docs/agent-handoff.md
+docs/current-state.md
+docs/next-task.md
+docs/progress.md
