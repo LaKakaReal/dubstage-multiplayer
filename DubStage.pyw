@@ -204,6 +204,21 @@ T = {
     "role_free":  ("frei", "free"),
     "role_taken": ("Diese Rolle hat schon jemand.",
                    "Someone already has that role."),
+    "ready_btn":  ("Bereit ✓", "Ready ✓"),
+    "wait_title": ("Warten auf die anderen", "Waiting for the others"),
+    "wait_sub":   ("Sobald alle bereit sind, wird die Szene zusammengesetzt.",
+                   "Once everyone is ready, the scene is put together."),
+    "lines_done": ("%d / %d Zeilen", "%d / %d lines"),
+    "st_done":    ("bereit ✓", "ready ✓"),
+    "st_working": ("nimmt noch auf", "still recording"),
+    "replay_mine": ("Meine Zeilen abspielen", "Replay my lines"),
+    "back_mine":  ("Zurück zu meinen Zeilen", "Back to my lines"),
+    "finish_now": ("Jetzt fertigstellen", "Finish now"),
+    "assembling": ("Szene wird zusammengesetzt ...",
+                   "Putting the scene together ..."),
+    "assembling_n": ("%d von %d Aufnahmen da", "%d of %d takes here"),
+    "no_takes_mine": ("Du hast noch nichts aufgenommen.",
+                      "You haven't recorded anything yet."),
     "unassigned_n": ("%d Zeilen ohne Sprecher – dort bleibt das Original.",
                      "%d lines have no one – they keep the original voice."),
     "by_line":    ("Nach Zeilen", "By line"),
@@ -389,6 +404,7 @@ class NetSession(object):
         self.failed = set()           # gescheiterte Sendungen
         self.fetching = set()
         self.trouble = None           # Verbindung hakt gerade
+        self.want_done = False        # "Bereit" gedrueckt, ggf. noch senden
 
     @property
     def is_host(self):
@@ -565,6 +581,10 @@ class Game(tk.Tk):
             self.build_finale()
         elif self.screen == "lobby":
             self.build_lobby()
+        elif self.screen == "waiting":
+            self.build_waiting()
+        elif self.screen == "assembling":
+            self.build_assembling()
 
     def _on_motion(self, e):
         for b in self.buttons:
@@ -615,12 +635,9 @@ class Game(tk.Tk):
     def _on_escape(self):
         if self.screen == "stage":
             self.leave_round()
-        elif self.screen == "finale":
-            if self.net:
-                self.back_to_stage()
-            else:
-                self.show_menu()
-        elif self.screen == "lobby":
+        elif self.screen == "finale" and not self.net:
+            self.show_menu()
+        elif self.screen in ("lobby", "waiting", "assembling", "finale"):
             self.leave_net()
 
     def _on_space(self):
@@ -1252,7 +1269,10 @@ class Game(tk.Tk):
         self.b_prev.set_enabled(not busy and self.line_i > 0)
         self.b_skip.set_enabled(not busy and bool(has_take) and mine)
         self.b_next.set_enabled(not busy)
-        self.b_next.set_text((t("finish") if last else t("next")) + "  ›")
+        if last and self.net:
+            self.b_next.set_text(t("ready_btn"))
+        else:
+            self.b_next.set_text((t("finish") if last else t("next")) + "  ›")
 
         # --- ab hier nur noch Kosmetik
         try:
@@ -1786,7 +1806,10 @@ class Game(tk.Tk):
         if self.phase != "idle":
             return
         if self.line_i >= len(self.pack.lines) - 1:
-            self.build_finale()
+            if self.net:
+                self.net_ready()
+            else:
+                self.build_finale()
             return
         self.goto_line(self.line_i + 1)
 
@@ -1821,8 +1844,13 @@ class Game(tk.Tk):
         w, h = self.size()
         pad = 34
 
-        self._btn(pad, 24, 150, 38, "‹  " + t("back_edit"),
-                  self.back_to_stage, "flat", font=("Segoe UI", 11))
+        if self.net:
+            # Im Mehrspieler ist das Finale endgueltig - nur noch verlassen.
+            self._btn(pad, 24, 130, 38, "‹  " + t("net_leave"),
+                      self.leave_net, "flat", font=("Segoe UI", 11))
+        else:
+            self._btn(pad, 24, 150, 38, "‹  " + t("back_edit"),
+                      self.back_to_stage, "flat", font=("Segoe UI", 11))
         cv.create_text(w / 2, 46, text=t("finale"), fill=TXT,
                        font=("Segoe UI Black", 26))
         done = sum(1 for l in self.pack.lines
@@ -2271,6 +2299,10 @@ class Game(tk.Tk):
             self.build_lobby()
         elif self.screen == "stage":
             self.sync()
+        elif self.screen == "waiting" and self.phase == "idle":
+            self.build_waiting()      # nicht mitten im Abspielen neu zeichnen
+        elif self.screen == "assembling":
+            self.build_assembling()
 
     def _net_follow_phase(self):
         """Geht mit, wenn der Host startet oder zurueck in die Lobby holt."""
@@ -2286,14 +2318,34 @@ class Game(tk.Tk):
                     self.line_i = i
                     break
             self.build_stage()
-        elif phase == "lobby" and self.screen in ("stage", "finale"):
+        elif phase == "lobby" and self.screen in ("stage", "finale",
+                                                   "waiting", "assembling"):
             if self.phase not in ("idle", "listen", "play"):
                 # Nicht mitten in die Aufnahme grätschen - gleich nochmal.
                 self.after(500, self._net_follow_phase)
                 return
+            s.want_done = False
             self._force_idle()
             self._stop_audio()
             self.build_lobby()
+        elif phase == "finale" and self.screen != "finale":
+            if self.phase in ("countdown", "record"):
+                self.after(500, self._net_follow_phase)
+                return
+            self._force_idle()
+            self._stop_audio()
+            if self._net_takes_complete():
+                self.build_finale()
+            elif self.screen != "assembling":
+                self.build_assembling()
+
+    def _net_takes_complete(self):
+        """Liegen alle Aufnahmen vom Host auch hier?"""
+        s = self.net
+        takes = s.state.get("takes", {})
+        return not s.fetching and all(
+            s.revs.get(f) == info["rev"] or f in s.unsent
+            for f, info in takes.items())
 
     # ------------------------------------------------------- Abfragen
     def _net_owner(self, line):
@@ -2361,11 +2413,13 @@ class Game(tk.Tk):
             if s.unsent.get(f) == op and line.take is data:
                 s.unsent.pop(f, None)
             if self.net is s:
+                self._net_push_done()
                 self._net_refresh()
 
         def failed(msg):
-            if "not your line" in msg or "unknown line" in msg:
-                s.unsent.pop(f, None)     # Zeile wurde neu verteilt
+            if ("not your line" in msg or "unknown line" in msg
+                    or "game finished" in msg):
+                s.unsent.pop(f, None)     # neu verteilt oder schon Finale
             elif s.unsent.get(f) == op and line.take is data:
                 s.failed.add(f)
             if self.net is s:
@@ -2429,11 +2483,187 @@ class Game(tk.Tk):
             if self.screen == "finale":
                 self.cv.itemconfigure(self.fin_msg, text=t("net_new_takes"),
                                       fill=GOLD)
+            self._net_follow_phase()
             self._net_refresh()
 
         def failed(_msg):
             s.fetching.discard(f)
         self._run_bg(work, done, on_error=failed)
+
+    # ------------------------------------------------------- Bereit
+    def net_ready(self):
+        """Letzte Zeile: bereit melden und auf die anderen warten."""
+        s = self.net
+        self._stop_audio()
+        self._set_phase("idle")
+        s.want_done = True
+        self.build_waiting()
+        self._net_push_done()
+
+    def _net_push_done(self):
+        # Erst wenn alle eigenen Aufnahmen beim Host sind - sonst beginnt
+        # das Finale womoeglich ohne die letzte.
+        s = self.net
+        if s is None or not s.want_done or s.unsent:
+            return
+        self._net_bg(lambda: s.client.set_done(True))
+
+    def net_back_to_lines(self):
+        s = self.net
+        s.want_done = False
+        self._stop_audio()
+        self._set_phase("idle")
+        self._net_bg(lambda: s.client.set_done(False))
+        self.back_to_stage()
+
+    def build_waiting(self):
+        s = self.net
+        if s is None:
+            self.show_menu()
+            return
+        self.screen = "waiting"
+        self._clear_canvas()
+        self._backdrop()
+        cv = self.cv
+        w, h = self.size()
+        pad = 34
+        st = s.state or {}
+
+        self._btn(pad, 24, 130, 38, "‹  " + t("net_leave"), self.leave_net,
+                  "flat", font=("Segoe UI", 11))
+        cv.create_text(w / 2, 44, text=t("wait_title"), fill=TXT,
+                       font=("Segoe UI Black", 24))
+        cv.create_text(w / 2, 76, text=t("wait_sub"), fill=DIM,
+                       font=("Segoe UI", 11))
+
+        # Video links - fuer "Meine Zeilen abspielen"
+        top = 112
+        vw, vh = self._video_size(int(w * 0.6), h - top - 160, pad)
+        vx = pad + 16
+        self.video_box = (vx, top, vw, vh)
+        self._last_idx = None
+        round_rect(cv, vx - 8, top - 8, vx + vw + 8, top + vh + 8, r=18,
+                   fill="#05060a", outline=EDGE)
+        self.video_item = cv.create_image(vx + vw / 2, top + vh / 2,
+                                          anchor="center")
+        self.overlay_rect = round_rect(cv, vx, top, vx + vw, top + vh, r=12,
+                                       fill="#000000", stipple="gray50",
+                                       outline="", state="hidden")
+        self.overlay_text = cv.create_text(vx + vw / 2, top + vh / 2, text="",
+                                           fill=GOLD, state="hidden",
+                                           font=("Segoe UI Black", 40))
+        self.wait_caption = cv.create_text(
+            vx + vw / 2, top + vh + 18, anchor="n", text="", fill=GOLD,
+            font=("Segoe UI Semibold", 13), width=vw - 20, justify="center")
+
+        # Fortschritt aller Spieler rechts
+        px0, px1 = vx + vw + 28, w - pad
+        round_rect(cv, px0, top - 8, px1, top + vh + 8, r=16, fill=PANEL,
+                   outline=EDGE)
+        cv.create_text(px0 + 18, top + 14, anchor="w", text=t("players"),
+                       fill=DIM, font=("Segoe UI Semibold", 10))
+        owner, takes = st.get("owner", {}), st.get("takes", {})
+        players = [p for p in st.get("players", []) if not p.get("left")]
+        for i, p in enumerate(players):
+            y = top + 44 + i * 50
+            if y > top + vh - 20:
+                break
+            total = sum(1 for o in owner.values() if o == p["id"])
+            got = sum(1 for f, o in owner.items()
+                      if o == p["id"] and f in takes)
+            cv.create_oval(px0 + 18, y - 6, px0 + 30, y + 6, fill=p["color"],
+                           outline="")
+            name = p["name"] + ("  (%s)" % t("you") if p["id"] == s.me
+                                else "")
+            cv.create_text(px0 + 40, y, anchor="w", text=name, fill=TXT,
+                           font=("Segoe UI Semibold", 11))
+            if not p.get("online"):
+                status, col = t("st_off"), RED
+            elif p.get("done"):
+                status, col = t("st_done"), TEAL
+            else:
+                status, col = t("st_working"), GOLD
+            cv.create_text(px0 + 40, y + 20, anchor="w",
+                           text="%s   ·   %s" % (t("lines_done", got, total),
+                                                status),
+                           fill=col, font=("Segoe UI", 10))
+
+        # Knoepfe
+        mine = [l for l in self.pack.lines
+                if self._net_mine(l) and l.take is not None]
+        by = min(top + vh + 64, h - 76)
+        self.b_replay = self._btn(vx, by, 230, 48, "▶  " + t("replay_mine"),
+                                  self.replay_mine, "go",
+                                  font=("Segoe UI Semibold", 12))
+        self.b_replay.set_enabled(bool(mine))
+        self._btn(vx + 246, by, 240, 48, "‹  " + t("back_mine"),
+                  self.net_back_to_lines, "ghost")
+        if s.is_host:
+            self._btn(w - pad - 200, by, 200, 48, t("finish_now"),
+                      s.room.finish, "primary")
+        if s.trouble:
+            msg = t("net_trouble")
+        elif s.unsent:
+            msg = t("net_unsent", len(s.unsent))
+        elif not mine:
+            msg = t("no_takes_mine")
+        else:
+            msg = ""
+        cv.create_text(w / 2, by + 70, text=msg, fill=DIM,
+                       font=("Segoe UI", 10))
+        self.show_frame(mine[0].start if mine else 0.0)
+
+    def replay_mine(self):
+        """Spielt die eigenen Aufnahmen nacheinander zum Video ab."""
+        if self.phase != "idle":
+            self._stop_audio()
+            self._set_phase("idle")
+            self.build_waiting()
+            return
+        queue_ = [l for l in self.pack.lines
+                  if self._net_mine(l) and l.take is not None]
+        if queue_:
+            self.b_replay.set_text("■  " + t("stop"))
+            self._replay_next(queue_, 0)
+
+    def _replay_next(self, queue_, i):
+        if self.screen != "waiting" or (i > 0 and self.phase != "listen"):
+            return
+        if i >= len(queue_):
+            self._stop_audio()
+            self._set_phase("idle")
+            self.build_waiting()
+            return
+        line = queue_[i]
+        dur = len(line.take) / float(ds.SR)
+        self._set_phase("listen", dur)
+        self.cv.itemconfigure(self.wait_caption,
+                              text=line.caption or line.name)
+        try:
+            self.mic.play(self._with_backing(line.take, line.start, 0.5))
+        except Exception:
+            traceback.print_exc()
+        self._play_from(line.start, dur,
+                        lambda: self._replay_next(queue_, i + 1))
+
+    def build_assembling(self):
+        """Alle sind bereit - die letzten Aufnahmen werden noch geholt."""
+        s = self.net
+        if s is None:
+            self.show_menu()
+            return
+        self.screen = "assembling"
+        self._clear_canvas()
+        self._backdrop()
+        cv = self.cv
+        w, h = self.size()
+        takes = (s.state or {}).get("takes", {})
+        here = sum(1 for f, info in takes.items()
+                   if s.revs.get(f) == info["rev"] or f in s.unsent)
+        cv.create_text(w / 2, h / 2 - 20, text=t("assembling"), fill=TXT,
+                       font=("Segoe UI Black", 24))
+        cv.create_text(w / 2, h / 2 + 22, fill=DIM, font=("Segoe UI", 11),
+                       text=t("assembling_n", here, len(takes)))
 
     # ------------------------------------------------------------ Lobby
     def _copy(self, text):
