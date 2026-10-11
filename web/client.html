@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DubStage</title>
+<style>
+:root{
+  --bg:#0a0b12; --bg-top:#171a2e; --panel:#1a1e30; --panel-hi:#242a42; --edge:#333a5c;
+  --txt:#eef1ff; --dim:#8a92b4; --acc:#7c5cff; --teal:#25d3a4; --red:#ff4f6d; --gold:#ffc861;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:linear-gradient(var(--bg-top),var(--bg) 60%) fixed;color:var(--txt);
+  font:15px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:26px;margin:0}
+h2{font-size:15px;margin:0 0 10px;color:var(--dim);font-weight:600}
+.muted{color:var(--dim)} .gold{color:var(--gold)} .err{color:var(--red)}
+.card{background:var(--panel);border:1px solid var(--edge);border-radius:16px;padding:16px 18px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;gap:14px;grid-template-columns:1fr 1.4fr}
+@media (max-width:760px){.grid{grid-template-columns:1fr}}
+button{font:600 14px "Segoe UI",system-ui,sans-serif;border:0;border-radius:14px;padding:12px 18px;
+  background:var(--panel-hi);color:var(--txt);cursor:pointer}
+button:hover:not(:disabled){background:var(--edge)}
+button:disabled{background:var(--panel);color:#565d7d;cursor:default}
+button.primary{background:var(--acc);color:#fff} button.primary:hover:not(:disabled){background:#9b83ff}
+button.rec{background:var(--red);color:#2b0710} button.rec:hover:not(:disabled){background:#ff7b92}
+button.go{background:var(--teal);color:#062a20}
+button.primary:disabled,button.rec:disabled,button.go:disabled{background:var(--panel);color:#565d7d}
+button.flat{background:none;color:var(--dim);padding:8px 4px} button.flat:hover{color:var(--txt);background:none}
+input{font:15px "Segoe UI",system-ui,sans-serif;background:var(--panel-hi);color:var(--txt);border:1px solid var(--edge);
+  border-radius:10px;padding:10px 12px;width:100%}
+input:focus{outline:none;border-color:var(--acc)}
+label{display:block;color:var(--dim);font-size:13px;margin:12px 0 4px}
+.hidden{display:none!important}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
+.plist div,.roles div{display:flex;align-items:center;gap:10px;padding:6px 0}
+.roles div{background:var(--panel-hi);border-radius:10px;padding:8px 12px;margin-bottom:6px}
+.roles .bar{width:5px;align-self:stretch;border-radius:3px}
+.right{margin-left:auto}
+#join{max-width:420px;margin:8vh auto 0}
+.video{position:relative;background:#05060a;border:1px solid var(--edge);border-radius:16px;overflow:hidden;aspect-ratio:16/9}
+.video video{width:100%;height:100%;display:block;object-fit:contain}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.5);
+  font:900 64px "Segoe UI",system-ui,sans-serif;color:var(--gold);text-align:center}
+.overlay.small{font-size:18px;font-weight:600;padding:20px}
+.badge{position:absolute;top:12px;right:12px;background:var(--red);color:#fff;border-radius:8px;padding:2px 10px;font-weight:700}
+.chips{display:flex;gap:3px;margin:12px 0 8px;cursor:pointer}
+.chips span{flex:1;height:10px;border-radius:5px;min-width:2px}
+.caption{text-align:center;color:var(--gold);font-size:18px;font-weight:600;min-height:52px;margin:6px 0}
+.lineinfo{display:flex;justify-content:space-between;font-size:13px;color:var(--dim)}
+.buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.nav{display:flex;gap:12px;margin-top:12px}
+.nav .right{margin-left:auto}
+.hint{text-align:center;color:var(--dim);font-size:13px;margin-top:14px}
+.progress{height:8px;background:var(--panel-hi);border-radius:4px;overflow:hidden;margin:12px 0}
+.progress div{height:100%;background:var(--acc);width:0}
+.code{font:700 28px Consolas,monospace;color:var(--gold);letter-spacing:2px}
+</style>
+</head>
+<body>
+<main>
+
+<!-- ============================================================ Join -->
+<section id="join" class="card">
+  <h1>DubStage</h1>
+  <p class="muted" data-t="joinIntro"></p>
+  <label for="code" data-t="roomCode"></label>
+  <input id="code" autocomplete="off" maxlength="12" style="text-transform:uppercase">
+  <label for="name" data-t="yourName"></label>
+  <input id="name" autocomplete="nickname" maxlength="24">
+  <p id="joinErr" class="err"></p>
+  <button id="joinBtn" class="primary" style="width:100%" data-t="join"></button>
+  <p id="secure" class="err hidden" data-t="needHttps"></p>
+  <p class="muted" style="font-size:13px" data-t="appHint"></p>
+</section>
+
+<!-- ============================================================ Lobby -->
+<section id="lobby" class="hidden">
+  <header>
+    <button class="flat" data-act="leave">‹ <span data-t="leave"></span></button>
+    <div style="text-align:center"><h1 data-t="lobby"></h1><div id="lobbyPack" class="muted"></div></div>
+    <span style="width:70px"></span>
+  </header>
+  <div class="grid">
+    <div class="card">
+      <h2 data-t="players"></h2>
+      <div id="players" class="plist"></div>
+      <p id="micState" class="muted" style="font-size:13px"></p>
+    </div>
+    <div class="card">
+      <h2 data-t="roles"></h2>
+      <div id="roles" class="roles"></div>
+    </div>
+  </div>
+  <p id="lobbyMsg" class="hint"></p>
+</section>
+
+<!-- ============================================================ Stage -->
+<section id="stage" class="hidden">
+  <header>
+    <button class="flat" data-act="leave">‹ <span data-t="leave"></span></button>
+    <strong id="stagePack"></strong>
+    <span id="lineOf" class="muted"></span>
+  </header>
+  <div class="video">
+    <video id="video" muted playsinline preload="auto"></video>
+    <div id="overlay" class="overlay hidden"></div>
+    <div id="recBadge" class="badge hidden">● REC</div>
+  </div>
+  <div id="chips" class="chips"></div>
+  <div id="caption" class="caption"></div>
+  <div class="lineinfo"><span id="lineTitle"></span><span id="lineTime"></span></div>
+  <div class="buttons">
+    <button id="bOrig">▶ <span data-t="original"></span></button>
+    <button id="bRec" class="rec">● <span id="recLabel" data-t="record"></span></button>
+    <button id="bTake">▶ <span id="takeLabel" data-t="myTake"></span></button>
+  </div>
+  <div class="nav">
+    <button id="bPrev">‹ <span data-t="back"></span></button>
+    <button id="bSkip" data-t="leaveEmpty"></button>
+    <button id="bNext" class="primary right"><span id="nextLabel" data-t="next"></span> ›</button>
+  </div>
+  <p id="hint" class="hint"></p>
+</section>
+
+<!-- ============================================================ Finale -->
+<section id="finale" class="hidden">
+  <header>
+    <button class="flat" id="bBackLines">‹ <span data-t="backLines"></span></button>
+    <h1 data-t="yourScene"></h1>
+    <span style="width:70px"></span>
+  </header>
+  <div class="video">
+    <video id="fvideo" muted playsinline preload="auto"></video>
+    <div id="foverlay" class="overlay small hidden"></div>
+  </div>
+  <div id="fcaption" class="caption"></div>
+  <div class="progress"><div id="fprog"></div></div>
+  <div class="row" style="justify-content:center"><button id="bPlay" class="go"><span id="playIcon">▶</span> <span id="playLabel" data-t="play"></span></button></div>
+  <p id="fmsg" class="hint"></p>
+</section>
+
+<!-- ============================================================ Ended -->
+<section id="ended" class="hidden card" style="max-width:420px;margin:10vh auto 0;text-align:center">
+  <h1 data-t="ended"></h1>
+  <p id="endedMsg" class="muted"></p>
+  <button class="primary" onclick="location.reload()" data-t="again"></button>
+</section>
+
+</main>
+<script>
+"use strict";
+// ======================================================================
+//  Texte / strings
+// ======================================================================
+const T = {
+  en: {
+    joinIntro: "Join a DubStage game in your browser. You need the room code from the host.",
+    roomCode: "Room code", yourName: "Your name", join: "Join", leave: "Leave",
+    needHttps: "Your browser only allows the microphone on https addresses. Ask the host for the …trycloudflare.com link.",
+    appHint: "Have the DubStage app? You can also join from there with Join game.",
+    lobby: "Lobby", players: "Players", roles: "Who voices what",
+    you: "you", host: "host", ready: "ready", offline: "offline", loading: "loading %",
+    waitHost: "Waiting for the host to start …", loadingPack: "Loading the scene …",
+    micOk: "Microphone: allowed", micAsk: "Microphone: your browser will ask when you join.",
+    micBlocked: "Microphone blocked – allow it in the address bar, then reload.",
+    original: "Original", record: "Record", recordAgain: "Record again", myTake: "My take", playTake: "Play take",
+    back: "Back", next: "Next", done: "Done", leaveEmpty: "Leave line empty",
+    lineOf: "Line %1 / %2", voicedBy: "voiced by %1", recording: "RECORDING", go: "GO",
+    recorded: "%1 of %2 lines recorded", yoursLeft: "yours left: %1", waitingFor: "waiting for %1",
+    unsent: "%1 not sent yet", trouble: "Connection trouble – retrying …",
+    videoPrep: "The host is preparing the video for browsers …",
+    yourScene: "Your scene", backLines: "Back to the lines", play: "Play", stop: "Stop",
+    newTakes: "New takes arrived – press Play again to hear them.",
+    ended: "Game over", hostEnded: "The host ended the game.", lost: "Lost the connection to the host.",
+    again: "Join again", leaveQ: "Leave the game? Your takes stay with the host.",
+    badCode: "Wrong room code.", noReach: "Cannot reach the host.",
+    noMic: "No microphone available.", quiet: "very quiet – speak up",
+  },
+  de: {
+    joinIntro: "Tritt einem DubStage-Spiel im Browser bei. Du brauchst den Raumcode vom Host.",
+    roomCode: "Raumcode", yourName: "Dein Name", join: "Beitreten", leave: "Verlassen",
+    needHttps: "Dein Browser erlaubt das Mikrofon nur auf https-Adressen. Frag den Host nach dem …trycloudflare.com-Link.",
+    appHint: "Du hast die DubStage-App? Dort geht es auch über Beitreten.",
+    lobby: "Lobby", players: "Spieler", roles: "Wer spricht was",
+    you: "du", host: "Host", ready: "bereit", offline: "offline", loading: "lädt %",
+    waitHost: "Warte auf den Host …", loadingPack: "Szene wird geladen …",
+    micOk: "Mikrofon: erlaubt", micAsk: "Mikrofon: der Browser fragt beim Beitreten.",
+    micBlocked: "Mikrofon blockiert – in der Adressleiste erlauben, dann neu laden.",
+    original: "Original", record: "Aufnehmen", recordAgain: "Nochmal aufnehmen", myTake: "Meine Aufnahme", playTake: "Aufnahme anhören",
+    back: "Zurück", next: "Weiter", done: "Fertig", leaveEmpty: "Zeile leer lassen",
+    lineOf: "Zeile %1 / %2", voicedBy: "gesprochen von %1", recording: "AUFNAHME", go: "LOS",
+    recorded: "%1 von %2 Zeilen aufgenommen", yoursLeft: "deine fehlen noch: %1", waitingFor: "warte auf %1",
+    unsent: "%1 noch nicht gesendet", trouble: "Verbindung hakt – versuche es weiter …",
+    videoPrep: "Der Host bereitet das Video für Browser vor …",
+    yourScene: "Deine Szene", backLines: "Zurück zu den Zeilen", play: "Abspielen", stop: "Stopp",
+    newTakes: "Neue Aufnahmen sind da – nochmal Abspielen, um sie zu hören.",
+    ended: "Spiel vorbei", hostEnded: "Der Host hat das Spiel beendet.", lost: "Verbindung zum Host verloren.",
+    again: "Neu beitreten", leaveQ: "Spiel verlassen? Deine Aufnahmen bleiben beim Host.",
+    badCode: "Falscher Raumcode.", noReach: "Host nicht erreichbar.",
+    noMic: "Kein Mikrofon verfügbar.", quiet: "sehr leise – lauter sprechen",
+  },
+};
+const LANG = (navigator.language || "en").toLowerCase().startsWith("de") ? "de" : "en";
+function t(key, ...args) {
+  let s = (T[LANG][key] ?? T.en[key] ?? key);
+  args.forEach((a, i) => { s = s.replace("%" + (i + 1), a); });
+  return s;
+}
+document.documentElement.lang = LANG;
+document.querySelectorAll("[data-t]").forEach(el => { el.textContent = t(el.dataset.t); });
+
+const $ = id => document.getElementById(id);
+const SR = 44100, TAIL = 0.7, BACK_REC = 0.6;
+
+function store(key, val) {
+  try { if (val === undefined) return localStorage.getItem(key); localStorage.setItem(key, val); }
+  catch (e) { return null; }
+}
+
+// ======================================================================
+//  Zustand / state
+// ======================================================================
+const S = {
+  code: "", token: "", me: "", version: 0, state: null, meta: null,
+  lines: [], lineIndex: {}, i: 0,
+  clips: new Map(), takes: new Map(), revs: new Map(),
+  unsent: new Map(), fetching: new Set(),
+  backing: null, ctx: null, stream: null,
+  phase: "idle", screen: "join", trouble: false, polling: false, ready: false,
+  play: null, videoReady: false,
+};
+
+function show(screen) {
+  S.screen = screen;
+  for (const id of ["join", "lobby", "stage", "finale", "ended"])
+    $(id).classList.toggle("hidden", id !== screen);
+}
+
+// ======================================================================
+//  Netz / network
+// ======================================================================
+function headers(extra) {
+  return Object.assign({ "X-Room": S.code, "X-Token": S.token }, extra || {});
+}
+async function api(method, path, body, isBinary) {
+  const opt = { method, headers: headers() };
+  if (body !== undefined) {
+    if (isBinary) { opt.body = body; opt.headers["Content-Type"] = "audio/wav"; }
+    else { opt.body = JSON.stringify(body); opt.headers["Content-Type"] = "application/json"; }
+  }
+  const r = await fetch(path, opt);
+  if (!r.ok) {
+    let msg = "HTTP " + r.status;
+    try { msg = (await r.json()).error || msg; } catch (e) {}
+    const err = new Error(msg); err.status = r.status; throw err;
+  }
+  return r;
+}
+const json = async (m, p, b) => (await api(m, p, b)).json();
+const enc = f => encodeURIComponent(f);
+const media = p => p + (p.includes("?") ? "&" : "?") + "room=" + enc(S.code);
+
+async function join() {
+  const code = $("code").value.trim().toUpperCase(), name = $("name").value.trim() || "Player";
+  if (!code) return;
+  $("joinErr").textContent = ""; $("joinBtn").disabled = true;
+  try {
+    S.ctx = S.ctx || new AudioContext();
+    S.code = code;
+    const res = await json("POST", "/join", { name });
+    S.token = res.token; S.me = res.player; S.state = res.state; S.version = res.state.version;
+    store("dubstage_name", name);
+    history.replaceState(null, "", "#code=" + code);
+    show("lobby"); renderLobby();
+    pollLoop();
+    askMic();
+    await loadScene();
+  } catch (e) {
+    $("joinErr").textContent = e.status === 403 ? t("badCode") : (e.status ? e.message : t("noReach"));
+    $("joinBtn").disabled = false;
+  }
+}
+
+async function pollLoop() {
+  if (S.polling) return;
+  S.polling = true;
+  let failingSince = 0, delay = 1000;
+  while (S.polling) {
+    try {
+      const st = await json("GET", "/state?since=" + S.version);
+      if (failingSince) { failingSince = 0; delay = 1000; S.trouble = false; retryUnsent(); refresh(); }
+      if (st.version !== S.version) { S.version = st.version; onState(st); }
+    } catch (e) {
+      if (!S.polling) break;
+      if (!failingSince) { failingSince = Date.now(); S.trouble = true; refresh(); }
+      if (Date.now() - failingSince > 30000) { end(t("lost")); break; }
+      await new Promise(r => setTimeout(r, delay));
+      delay = Math.min(5000, delay * 1.6);
+    }
+  }
+}
+
+function end(msg) {
+  S.polling = false; stopPlay();
+  $("endedMsg").textContent = msg; show("ended");
+}
+
+window.addEventListener("pagehide", () => {
+  if (S.token && S.polling)
+    fetch("/leave", { method: "POST", headers: headers({ "Content-Type": "application/json" }),
+                      body: "{}", keepalive: true }).catch(() => {});
+});
+
+function leave() {
+  if (!confirm(t("leaveQ"))) return;
+  api("POST", "/leave", {}).catch(() => {});
+  end(""); location.hash = ""; location.reload();
+}
+
+// ======================================================================
+//  Szene laden / load the scene
+// ======================================================================
+async function decode(path) {
+  const r = await api("GET", path);
+  return await S.ctx.decodeAudioData(await r.arrayBuffer());
+}
+
+async function loadScene() {
+  S.meta = await json("GET", "/pack/meta");
+  S.lines = S.meta.lines;
+  S.lines.forEach((l, i) => { S.lineIndex[l.file] = i; });
+  $("lobbyPack").textContent = S.meta.name; $("stagePack").textContent = S.meta.name;
+  const jobs = [];
+  if (S.meta.backing) jobs.push(async () => { S.backing = await decode("/media/backing"); });
+  // Ein Clip wird ggf. mehrfach benutzt (datei#2) - nur einmal laden.
+  const byPath = new Map();
+  for (const l of S.lines) {
+    const base = l.file.replace(/#\d+$/, "");
+    if (!byPath.has(base)) byPath.set(base, []);
+    byPath.get(base).push(l.file);
+  }
+  for (const [base, files] of byPath)
+    jobs.push(async () => { const b = await decode("/media/line/" + enc(base)); files.forEach(f => S.clips.set(f, b)); });
+  let done = 0, lastSent = 0;
+  const step = async () => {
+    while (jobs.length) {
+      const job = jobs.shift();
+      await job();
+      done++;
+      const p = done / (done + jobs.length);
+      if (Date.now() - lastSent > 400) { lastSent = Date.now(); api("POST", "/status", { progress: p }).catch(() => {}); }
+    }
+  };
+  await Promise.all([step(), step(), step(), step()]);
+  S.ready = true;
+  await api("POST", "/status", { ready: true, progress: 1 }).catch(() => {});
+  waitVideo();
+  applyTakes(); followPhase(); refresh();
+}
+
+async function waitVideo() {
+  // Der Host wandelt das Video einmal um - bis dahin 503.
+  while (S.polling) {
+    try {
+      const r = await fetch(media("/media/video"), { method: "HEAD" });
+      if (r.ok) break;
+      if (r.status !== 503) return;
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  for (const v of [$("video"), $("fvideo")]) v.src = media("/media/video");
+  S.videoReady = true; refresh();
+}
+
+async function askMic() {
+  if (!window.isSecureContext || !navigator.mediaDevices) { $("micState").textContent = t("needHttps"); return; }
+  try {
+    S.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false } });
+    $("micState").textContent = t("micOk");
+  } catch (e) {
+    $("micState").textContent = t("micBlocked");
+  }
+}
+
+// ======================================================================
+//  Zustand vom Host / state from the host
+// ======================================================================
+function onState(st) {
+  S.state = st;
+  if (st.phase === "closed") { end(t("hostEnded")); return; }
+  applyTakes(); retryUnsent(); followPhase(); refresh();
+}
+
+const owner = l => S.state && S.state.owner[l.file];
+const mine = l => !!l && owner(l) === S.me;
+const player = pid => (S.state ? S.state.players.find(p => p.id === pid) : null) || { name: "?", color: "#8a92b4" };
+
+function applyTakes() {
+  if (!S.ready || !S.state) return;
+  const takes = S.state.takes;
+  for (const [f, info] of Object.entries(takes)) {
+    if (S.revs.get(f) === info.rev || S.unsent.has(f) || !(f in S.lineIndex)) continue;
+    if (info.player === S.me && S.takes.has(f)) { S.revs.set(f, info.rev); continue; }
+    fetchTake(f, info.rev);
+  }
+  for (const f of [...S.revs.keys()]) {
+    if (!(f in takes)) { S.revs.delete(f); if (!S.unsent.has(f)) S.takes.delete(f); }
+  }
+}
+
+async function fetchTake(f, rev) {
+  if (S.fetching.has(f)) return;
+  S.fetching.add(f);
+  try {
+    const buf = await decode("/take/" + enc(f));
+    if (!S.unsent.has(f)) { S.takes.set(f, buf); S.revs.set(f, rev); }
+    if (S.screen === "finale") $("fmsg").textContent = t("newTakes");
+  } catch (e) { /* naechster Stand versucht es erneut */ }
+  S.fetching.delete(f);
+  const cur = S.state.takes[f];
+  if (cur && cur.rev !== rev) fetchTake(f, cur.rev);
+  refresh();
+}
+
+function followPhase() {
+  if (!S.ready || !S.state) return;
+  const ph = S.state.phase;
+  if (ph === "recording" && S.screen === "lobby") {
+    const first = S.lines.findIndex(l => mine(l) && !S.takes.has(l.file));
+    S.i = Math.max(0, first); show("stage"); renderStage();
+  } else if (ph === "lobby" && (S.screen === "stage" || S.screen === "finale")) {
+    if (S.phase === "record" || S.phase === "countdown") { setTimeout(followPhase, 500); return; }
+    stopPlay(); show("lobby"); renderLobby();
+  }
+}
+
+function refresh() {
+  if (S.screen === "lobby") renderLobby();
+  else if (S.screen === "stage") renderStage();
+}
+
+// ======================================================================
+//  Lobby
+// ======================================================================
+function renderLobby() {
+  const st = S.state; if (!st) return;
+  const ps = st.players.filter(p => !p.left);
+  $("players").innerHTML = "";
+  for (const p of ps) {
+    const d = document.createElement("div");
+    const tags = [p.host ? t("host") : "", p.id === S.me ? t("you") : ""].filter(Boolean).join(", ");
+    let status = p.online ? (p.ready ? t("ready") : t("loading").replace("%", Math.round(p.progress * 100) + "%")) : t("offline");
+    d.innerHTML = `<span class="dot"></span><b></b><span class="right muted"></span>`;
+    d.children[0].style.background = p.color;
+    d.children[1].textContent = p.name + (tags ? "  (" + tags + ")" : "");
+    d.children[2].textContent = status;
+    d.children[2].style.color = !p.online ? "var(--red)" : p.ready ? "var(--teal)" : "var(--gold)";
+    $("players").appendChild(d);
+  }
+  $("roles").innerHTML = "";
+  if (S.meta) {
+    const groups = new Map();
+    for (const l of S.lines) { if (!groups.has(l.name)) groups.set(l.name, []); groups.get(l.name).push(l); }
+    for (const [name, ls] of groups) {
+      const owners = [...new Set(ls.map(l => owner(l)))].map(player);
+      const d = document.createElement("div");
+      d.innerHTML = `<span class="bar"></span><b></b><span class="muted" style="font-size:12px"></span><span class="right"></span>`;
+      d.children[0].style.background = owners[0] ? owners[0].color : "var(--dim)";
+      d.children[1].textContent = name;
+      d.children[2].textContent = ls.length + " · " + ls.reduce((a, l) => a + l.duration, 0).toFixed(1) + " s";
+      d.children[3].textContent = owners.map(o => o.name).join(" / ");
+      d.children[3].style.color = owners[0] ? owners[0].color : "";
+      $("roles").appendChild(d);
+    }
+  }
+  $("lobbyMsg").textContent = S.trouble ? t("trouble") : (S.ready ? t("waitHost") : t("loadingPack"));
+}
+
+// ======================================================================
+//  Wiedergabe / playback
+// ======================================================================
+function stopPlay() {
+  const p = S.play; S.play = null;
+  if (!p) return;
+  for (const s of p.sources) { try { s.stop(); } catch (e) {} }
+  if (p.raf) cancelAnimationFrame(p.raf);
+  p.video.pause();
+  if (p.onEnd) p.onEnd(true);
+}
+
+function peak(buf) {
+  let m = 0; const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i += 4) { const v = Math.abs(d[i]); if (v > m) m = v; }
+  return m;
+}
+
+// Spielt ab sceneStart eine Anzahl Puffer zum Video. parts: {buf, at, gain, offset, dur}
+async function playScene(video, sceneStart, dur, parts, onTick, onEnd) {
+  stopPlay();
+  if (S.ctx.state === "suspended") await S.ctx.resume();
+  if (S.videoReady) {
+    video.pause(); video.currentTime = sceneStart;
+    await new Promise(r => { const f = () => { video.removeEventListener("seeked", f); r(); }; video.addEventListener("seeked", f); setTimeout(f, 800); });
+  }
+  const t0 = S.ctx.currentTime + 0.12;
+  const sources = [];
+  for (const p of parts) {
+    if (!p.buf) continue;
+    const src = S.ctx.createBufferSource(); src.buffer = p.buf;
+    const g = S.ctx.createGain(); g.gain.value = p.gain ?? 1;
+    src.connect(g).connect(S.ctx.destination);
+    const off = Math.max(0, p.offset || 0);
+    if (p.dur !== undefined) src.start(t0 + (p.at || 0), off, Math.max(0, p.dur)); else src.start(t0 + (p.at || 0), off);
+    sources.push(src);
+  }
+  const play = { sources, video, t0, dur, onEnd, raf: 0 };
+  S.play = play;
+  setTimeout(() => { if (S.play === play && S.videoReady) video.play().catch(() => {}); }, 120);
+  const tick = () => {
+    if (S.play !== play) return;
+    const el = S.ctx.currentTime - t0;
+    if (el >= dur) { S.play = null; video.pause(); onEnd && onEnd(false); return; }
+    // Video an der Tonuhr festhalten
+    if (S.videoReady && el > 0.3 && Math.abs(video.currentTime - (sceneStart + el)) > 0.25)
+      video.currentTime = sceneStart + el;
+    onTick && onTick(el);
+    play.raf = requestAnimationFrame(tick);
+  };
+  play.raf = requestAnimationFrame(tick);
+  return t0;
+}
+
+function backingPart(start, dur, gain) {
+  return S.backing ? { buf: S.backing, at: 0, offset: start, dur, gain } : null;
+}
+
+function takeGain(buf) { const m = peak(buf); return m > 1e-4 ? 0.92 / m : 1; }
+
+// ======================================================================
+//  Buehne / stage
+// ======================================================================
+const line = () => S.lines[S.i];
+
+function renderStage() {
+  const l = line(); if (!l) return;
+  const n = S.lines.length, busy = S.phase !== "idle", has = S.takes.has(l.file), own = mine(l);
+  const p = player(owner(l));
+  $("lineOf").textContent = t("lineOf", S.i + 1, n);
+  $("caption").textContent = l.caption || "";
+  $("lineTitle").textContent = l.name + "   ·   " + t("voicedBy", p.name);
+  $("lineTitle").style.color = p.color;
+  $("lineTime").textContent = fmt(l.start) + " – " + fmt(l.start + l.duration);
+  $("bOrig").disabled = busy;
+  $("bRec").disabled = busy || !own || !S.stream;
+  $("recLabel").textContent = has ? t("recordAgain") : t("record");
+  $("bTake").disabled = busy || !has;
+  $("takeLabel").textContent = own ? t("myTake") : t("playTake");
+  $("bPrev").disabled = busy || S.i === 0;
+  $("bSkip").disabled = busy || !has || !own;
+  $("bNext").disabled = busy;
+  $("nextLabel").textContent = S.i >= n - 1 ? t("done") : t("next");
+  // Leiste
+  const chips = $("chips");
+  if (chips.children.length !== n) {
+    chips.innerHTML = "";
+    S.lines.forEach((_, i) => { const c = document.createElement("span"); c.onclick = () => goto(i); chips.appendChild(c); });
+  }
+  S.lines.forEach((ln, i) => {
+    const c = player(owner(ln)).color, rec = S.takes.has(ln.file);
+    chips.children[i].style.background = i === S.i ? "var(--gold)" : rec ? c : mix(c, "#242a42", 0.7);
+  });
+  $("hint").textContent = hintText();
+  if (!S.videoReady) { overlay(t("videoPrep"), true); }
+  else if (!busy) { overlay(null); const v = $("video"); if (Math.abs(v.currentTime - l.start) > 0.05) v.currentTime = l.start; }
+}
+
+function hintText() {
+  if (S.trouble) return t("trouble");
+  const n = S.lines.length, done = S.lines.filter(l => S.takes.has(l.file)).length;
+  const parts = [t("recorded", done, n)];
+  const left = S.lines.filter(l => mine(l) && !S.takes.has(l.file)).length;
+  if (left) parts.push(t("yoursLeft", left));
+  else {
+    const waiting = new Map();
+    for (const l of S.lines) if (!S.takes.has(l.file)) { const o = owner(l); waiting.set(o, (waiting.get(o) || 0) + 1); }
+    if (waiting.size) parts.push(t("waitingFor", [...waiting].map(([pid, c]) => player(pid).name + " (" + c + ")").join(", ")));
+  }
+  if (S.unsent.size) parts.push(t("unsent", S.unsent.size));
+  return parts.join("   ·   ");
+}
+
+function fmt(s) { const m = Math.floor(s / 60), r = s - m * 60; return m + ":" + (r < 10 ? "0" : "") + r.toFixed(1); }
+function mix(a, b, f) {
+  const x = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16)), y = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+  return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * f).toString(16).padStart(2, "0")).join("");
+}
+function overlay(text, small) {
+  const o = $("overlay");
+  o.classList.toggle("hidden", !text); o.classList.toggle("small", !!small); o.textContent = text || "";
+}
+
+function goto(i) {
+  if (S.phase !== "idle") return;
+  stopPlay(); S.i = Math.max(0, Math.min(S.lines.length - 1, i)); renderStage();
+}
+
+function setPhase(p) { S.phase = p; renderStage(); }
+
+async function playOriginal() {
+  const l = line(); if (S.phase !== "idle") return;
+  setPhase("listen");
+  await playScene($("video"), l.start, l.duration,
+    [{ buf: S.clips.get(l.file), gain: 0.95 }, backingPart(l.start, l.duration, 0.6)].filter(Boolean),
+    null, () => setPhase("idle"));
+}
+
+async function playTake() {
+  const l = line(), buf = S.takes.get(l.file); if (!buf || S.phase !== "idle") return;
+  setPhase("listen");
+  await playScene($("video"), l.start, buf.duration,
+    [{ buf, gain: takeGain(buf) * 0.95 }, backingPart(l.start, buf.duration, 0.5)].filter(Boolean),
+    null, () => setPhase("idle"));
+}
+
+// ---------------------------------------------------------- Aufnahme
+async function record() {
+  const l = line();
+  if (S.phase !== "idle" || !mine(l) || !S.stream) return;
+  if (S.ctx.state === "suspended") await S.ctx.resume();
+  setPhase("countdown");
+  $("video").currentTime = l.start;
+  for (const c of ["3", "2", "1"]) { overlay(c); await sleep(650); if (S.phase !== "countdown") return; }
+  overlay(t("go")); await sleep(300);
+  if (S.phase !== "countdown") return;
+  overlay(null);
+  const dur = l.duration + TAIL;
+  const ctx = S.ctx, src = ctx.createMediaStreamSource(S.stream);
+  const proc = ctx.createScriptProcessor(4096, 1, 1), mute = ctx.createGain();
+  mute.gain.value = 0;
+  src.connect(proc); proc.connect(mute).connect(ctx.destination);
+  const chunks = []; let t0 = Infinity;
+  proc.onaudioprocess = e => {
+    const data = e.inputBuffer.getChannelData(0), at = e.playbackTime;
+    const end = at + data.length / ctx.sampleRate;
+    if (end <= t0 || at >= t0 + dur) return;
+    const from = Math.max(0, Math.round((t0 - at) * ctx.sampleRate));
+    const to = Math.min(data.length, Math.round((t0 + dur - at) * ctx.sampleRate));
+    if (to > from) chunks.push(data.slice(from, to));
+  };
+  S.phase = "record"; $("recBadge").classList.remove("hidden"); renderStage();
+  t0 = await playScene($("video"), l.start, dur, [backingPart(l.start, dur, BACK_REC)].filter(Boolean), null, async () => {
+    await sleep(250);                         // letzte Puffer noch einsammeln
+    proc.onaudioprocess = null;
+    try { src.disconnect(); proc.disconnect(); } catch (e) {}
+    $("recBadge").classList.add("hidden");
+    const total = chunks.reduce((a, c) => a + c.length, 0);
+    if (total > ctx.sampleRate * 0.2) {
+      const flat = new Float32Array(total); let o = 0;
+      for (const c of chunks) { flat.set(c, o); o += c.length; }
+      const buf = ctx.createBuffer(1, flat.length, ctx.sampleRate);
+      buf.copyToChannel(flat, 0);
+      S.takes.set(l.file, buf);
+      send(l.file, buf);
+      if (peak(buf) < 0.03) $("hint").textContent = t("quiet");
+    }
+    setPhase("idle");
+  });
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function toWav(buf) {
+  // Auf 44,1 kHz mono bringen, dann 16-bit-WAV
+  const len = Math.ceil(buf.duration * SR);
+  const off = new OfflineAudioContext(1, len, SR);
+  const s = off.createBufferSource(); s.buffer = buf; s.connect(off.destination); s.start();
+  const data = (await off.startRendering()).getChannelData(0);
+  const out = new DataView(new ArrayBuffer(44 + data.length * 2));
+  const w = (o, str) => { for (let i = 0; i < str.length; i++) out.setUint8(o + i, str.charCodeAt(i)); };
+  w(0, "RIFF"); out.setUint32(4, 36 + data.length * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, SR, true); out.setUint32(28, SR * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+  w(36, "data"); out.setUint32(40, data.length * 2, true);
+  for (let i = 0; i < data.length; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, data[i])) * 32767, true);
+  return out.buffer;
+}
+
+async function send(file, buf) {
+  const op = buf ? "put" : "del";
+  S.unsent.set(file, { op, buf, failed: false });
+  refresh();
+  try {
+    if (buf) await api("PUT", "/take/" + enc(file), await toWav(buf), true);
+    else await api("DELETE", "/take/" + enc(file));
+    const u = S.unsent.get(file);
+    if (u && u.op === op && u.buf === buf) S.unsent.delete(file);
+  } catch (e) {
+    const u = S.unsent.get(file);
+    if (/not your line|unknown line/.test(e.message)) S.unsent.delete(file);
+    else if (u && u.buf === buf) u.failed = true;
+  }
+  refresh();
+}
+
+function retryUnsent() {
+  if (S.trouble) return;
+  for (const [f, u] of S.unsent) if (u.failed) send(f, S.takes.get(f) || null);
+}
+
+function clearTake() {
+  const l = line(); if (S.phase !== "idle" || !mine(l) || !S.takes.has(l.file)) return;
+  S.takes.delete(l.file); send(l.file, null);
+}
+
+// ======================================================================
+//  Finale
+// ======================================================================
+function openFinale() {
+  stopPlay(); show("finale"); $("fmsg").textContent = "";
+  $("foverlay").classList.toggle("hidden", S.videoReady);
+  $("foverlay").textContent = t("videoPrep");
+  $("fvideo").currentTime = 0;
+  setTimeout(toggleFinale, 300);
+}
+
+function finaleParts() {
+  const parts = [];
+  if (S.backing) parts.push({ buf: S.backing, at: 0, gain: 1 });
+  for (const l of S.lines) {
+    const take = S.takes.get(l.file);
+    if (take) parts.push({ buf: take, at: l.start, gain: takeGain(take) * 0.9 });
+    else if (S.backing) parts.push({ buf: S.clips.get(l.file), at: l.start, gain: 0.9 });
+    else parts.push({ buf: S.clips.get(l.file), at: l.start, gain: 0.9 });
+  }
+  return parts;
+}
+
+async function toggleFinale() {
+  if (S.screen !== "finale") return;
+  if (S.play) { stopPlay(); return; }
+  const dur = Math.max(S.meta.duration || 0, ...S.lines.map(l => l.start + l.duration + 1));
+  $("fmsg").textContent = "";
+  $("playLabel").textContent = t("stop"); $("playIcon").textContent = "■";
+  await playScene($("fvideo"), 0, dur, finaleParts(), el => {
+    $("fprog").style.width = Math.min(100, el / dur * 100) + "%";
+    let cap = "";
+    for (const l of S.lines) if (l.caption && el >= l.start - 0.2 && el <= l.start + Math.max(l.duration, 0.4) + 0.5) cap = l.caption;
+    $("fcaption").textContent = cap;
+  }, () => {
+    $("playLabel").textContent = t("play"); $("playIcon").textContent = "▶"; $("fprog").style.width = "0"; $("fcaption").textContent = "";
+  });
+}
+
+// ======================================================================
+//  Bedienung / controls
+// ======================================================================
+$("joinBtn").onclick = join;
+for (const id of ["code", "name"]) $(id).addEventListener("keydown", e => { if (e.key === "Enter") join(); });
+document.querySelectorAll("[data-act=leave]").forEach(b => b.onclick = leave);
+$("bOrig").onclick = playOriginal;
+$("bRec").onclick = record;
+$("bTake").onclick = playTake;
+$("bSkip").onclick = clearTake;
+$("bPrev").onclick = () => goto(S.i - 1);
+$("bNext").onclick = () => { if (S.phase !== "idle") return; if (S.i >= S.lines.length - 1) openFinale(); else goto(S.i + 1); };
+$("bPlay").onclick = toggleFinale;
+$("bBackLines").onclick = () => { stopPlay(); show("stage"); renderStage(); };
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (S.screen === "stage") {
+    if (e.code === "Space") { e.preventDefault(); record(); }
+    else if (e.key === "ArrowLeft") goto(S.i - 1);
+    else if (e.key === "ArrowRight") goto(S.i + 1);
+  } else if (S.screen === "finale" && e.code === "Space") { e.preventDefault(); toggleFinale(); }
+});
+
+// Start: Raumcode aus dem Link (#code=XXXX), Name aus dem letzten Mal
+(() => {
+  const m = location.hash.match(/code=([A-Za-z0-9]+)/);
+  if (m) $("code").value = m[1].toUpperCase();
+  $("name").value = store("dubstage_name") || "";
+  if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1")
+    $("secure").classList.remove("hidden");
+  ($("code").value ? $("name") : $("code")).focus();
+})();
+</script>
+</body>
+</html>
