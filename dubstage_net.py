@@ -173,21 +173,22 @@ def _line_len(line):
     return line.duration if line.duration > 0 else 1.0
 
 
-def auto_assign(lines, player_ids):
+def auto_assign(lines, player_ids, load=None):
     """
     Verteilt die Zeilen gleichmaessig. Ganze Figuren bleiben bei einem
     Spieler; gibt es weniger Figuren als Spieler, wird Zeile fuer Zeile
-    verteilt, damit jeder etwas zu tun hat.
+    verteilt, damit jeder etwas zu tun hat. load: was jeder schon hat
+    (Sekunden), damit selbst gewaehlte Rollen mitzaehlen.
     """
     player_ids = list(player_ids)
-    if not player_ids:
+    if not player_ids or not lines:
         return {}
     groups = line_groups(lines)
     if len(groups) < len(player_ids):
         units = [[l] for l in lines]
     else:
         units = [g[1] for g in groups]
-    load = dict((p, 0.0) for p in player_ids)
+    load = dict((p, (load or {}).get(p, 0.0)) for p in player_ids)
     out = {}
     for unit in sorted(units, key=lambda u: -sum(_line_len(l) for l in u)):
         pid = min(player_ids, key=lambda p: (load[p], player_ids.index(p)))
@@ -311,7 +312,8 @@ class Room(object):
         self.phase = "lobby"
         self.players = {}         # id -> dict
         self.tokens = {}          # token -> id
-        self.owner = {}           # line file -> player id
+        # line file -> player id; None = frei, jeder darf sie nehmen
+        self.owner = dict((f, None) for f in self.line_files)
         self.takes = {}           # line file -> {"player", "rev"}
         self.take_data = {}       # line file -> WAV bytes
         self._next_id = 1
@@ -358,8 +360,6 @@ class Room(object):
             self.tokens[token] = pid
             if host:
                 self.host_id = pid
-                for f in self.line_files:
-                    self.owner.setdefault(f, pid)
             self._bump()
             return pid, token
 
@@ -369,10 +369,12 @@ class Room(object):
             if pid is None:
                 return
             self.players[pid]["left"] = True
-            # Seine Zeilen fallen an den Host zurueck, Aufnahmen bleiben.
+            # In der Lobby werden seine Rollen wieder frei; laeuft das Spiel
+            # schon, uebernimmt der Host. Aufnahmen bleiben.
+            heir = self.host_id if self.phase != "lobby" else None
             for f, owner in list(self.owner.items()):
-                if owner == pid and self.host_id:
-                    self.owner[f] = self.host_id
+                if owner == pid:
+                    self.owner[f] = heir
             self._bump()
 
     def set_status(self, token, ready=None, progress=None):
@@ -402,17 +404,52 @@ class Room(object):
 
     # --- nur Host
     def assign(self, line_file, player_id):
-        with self._cond:
-            if line_file in self.owner and player_id in self.players:
-                self.owner[line_file] = player_id
-                self._bump()
+        """player_id None macht die Zeile wieder frei."""
+        self.assign_all({line_file: player_id})
 
     def assign_all(self, mapping):
         with self._cond:
             for f, pid in mapping.items():
-                if f in self.owner and pid in self.players:
+                if f in self.owner and (pid is None or pid in self.players):
                     self.owner[f] = pid
             self._bump()
+
+    def auto_split(self):
+        """Verteilt nur die freien Rollen - gewaehlte bleiben, wo sie sind."""
+        with self._cond:
+            ids = self.active_ids()
+            lines = dict((l.file, l) for l in self.pack.lines)
+            load = dict((p, 0.0) for p in ids)
+            free = []
+            for f in self.line_files:
+                if self.owner.get(f) in load:
+                    load[self.owner[f]] += _line_len(lines[f])
+                else:
+                    free.append(lines[f])
+            self.assign_all(auto_assign(free, ids, load))
+
+    # --- Rollen waehlen (alle Spieler, nur in der Lobby)
+    def claim(self, token, files, take=True):
+        with self._cond:
+            pid = self._player_by_token(token)
+            if pid is None:
+                return 403, "unknown player"
+            if self.phase != "lobby":
+                return 409, "game already started"
+            files = [f for f in files if f in self.owner]
+            if not files:
+                return 404, "unknown line"
+            if take:
+                if any(self.owner[f] not in (None, pid) for f in files):
+                    return 409, "role taken"
+                for f in files:
+                    self.owner[f] = pid
+            else:
+                for f in files:
+                    if self.owner[f] == pid:
+                        self.owner[f] = None
+            self._bump()
+            return 200, "ok"
 
     def active_ids(self):
         with self._cond:
@@ -740,6 +777,14 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, "ok")
             else:
                 self._send(403, "unknown player")
+        elif path == "/claim":
+            lines = data.get("lines")
+            if not isinstance(lines, list):
+                self._send(400, "bad request")
+                return
+            code, msg = self.room.claim(token, [str(f) for f in lines],
+                                        bool(data.get("take", True)))
+            self._send(code, msg)
         else:
             self._send(404, "not found")
 
@@ -868,6 +913,10 @@ class Client(object):
         if progress is not None:
             body["progress"] = progress
         self._json("POST", "/status", body)
+
+    def claim(self, files, take=True):
+        """Rollen nehmen (take) oder wieder abgeben - nur in der Lobby."""
+        self._json("POST", "/claim", {"lines": list(files), "take": take})
 
     def state(self, since=0, timeout=POLL_WAIT + 10):
         return self._json("GET", "/state?since=%d" % since, timeout=timeout)
