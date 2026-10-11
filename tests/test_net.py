@@ -3,9 +3,12 @@
 import os
 import shutil
 import sys
+import json
 import tempfile
 import threading
 import time
+import urllib.error
+import urllib.parse
 import unittest
 import zipfile
 
@@ -106,17 +109,67 @@ class ServerTests(unittest.TestCase):
             c.join("Eve")
         self.assertIn("room code", str(cm.exception))
 
-    def test_browser_gets_explanation_instead_of_error(self):
+    def get(self, path, headers=None):
         import urllib.request
-        with urllib.request.urlopen("http://%s/" % self.addr) as r:
+        req = urllib.request.Request("http://%s%s" % (self.addr, path),
+                                     headers=headers or {})
+        return urllib.request.urlopen(req)
+
+    def test_browser_gets_web_client(self):
+        with self.get("/") as r:
             self.assertEqual(r.status, 200)
             self.assertIn("text/html", r.headers["Content-Type"])
-            self.assertIn("Join game", r.read().decode("utf-8"))
+            page = r.read().decode("utf-8")
+        self.assertIn("/pack/meta", page)
         # Ohne Raumcode bleibt alles andere verschlossen
+        for path in ("/state", "/pack/meta", "/media/backing"):
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                self.get(path)
+            self.assertEqual(cm.exception.code, 403, path)
+            cm.exception.close()
+
+    def test_pack_meta_for_browsers(self):
+        with self.get("/pack/meta", {"X-Room": self.room.code}) as r:
+            meta = json.loads(r.read().decode("utf-8"))
+        self.assertEqual(meta["name"], "Testpack")
+        self.assertEqual([l["file"] for l in meta["lines"]],
+                         [l.file for l in self.pack.lines])
+        self.assertEqual(meta["lines"][0]["caption"], "Hallo")
+        self.assertEqual(meta["lines"][1]["start"], 3.5)
+
+    def test_media_with_room_in_query_and_ranges(self):
+        line = self.pack.lines[0]
+        path = "/media/line/%s?room=%s" % (urllib.parse.quote(line.file),
+                                           self.room.code.lower())
+        with open(line.path, "rb") as fh:
+            whole = fh.read()
+        with self.get(path) as r:
+            self.assertEqual(r.read(), whole)
+            self.assertEqual(r.headers["Accept-Ranges"], "bytes")
+            self.assertIn("audio/", r.headers["Content-Type"])
+        with self.get(path, {"Range": "bytes=10-19"}) as r:
+            self.assertEqual(r.status, 206)
+            self.assertEqual(r.read(), whole[10:20])
+            self.assertEqual(r.headers["Content-Range"],
+                             "bytes 10-19/%d" % len(whole))
+        with self.get(path, {"Range": "bytes=-5"}) as r:
+            self.assertEqual(r.read(), whole[-5:])
         with self.assertRaises(urllib.error.HTTPError) as cm:
-            urllib.request.urlopen("http://%s/state" % self.addr)
-        self.assertEqual(cm.exception.code, 403)
+            self.get("/media/line/..%2F..%2Fevil.wav?room=" + self.room.code)
+        self.assertEqual(cm.exception.code, 404)
         cm.exception.close()
+
+    def test_video_waits_until_converted(self):
+        q = "?room=" + self.room.code
+        self.room.web_state = "working"          # Umwandlung laeuft noch
+        with self.assertRaises(urllib.error.HTTPError) as cm:
+            self.get("/media/video" + q)
+        self.assertEqual(cm.exception.code, 503)
+        cm.exception.close()
+        self.room.web_state, self.room._web_path = "ready", self.pack.video
+        with self.get("/media/video" + q) as r:
+            self.assertEqual(r.headers["Content-Type"], "video/mp4")
+            self.assertEqual(len(r.read()), 4096)
 
     def test_take_flows_between_players(self):
         a, b = self.client("Anna"), self.client("Anna")
