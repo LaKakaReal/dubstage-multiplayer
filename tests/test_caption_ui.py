@@ -1,5 +1,6 @@
 """Exercise the actual editor widgets without displaying a window or networking."""
 
+import gc
 import os
 import runpy
 import shutil
@@ -15,6 +16,10 @@ import transcription as tr
 @unittest.skipUnless(sys.platform == "win32" or os.environ.get("DISPLAY"), "Tk display required")
 class CaptionEditorTests(unittest.TestCase):
     def setUp(self):
+        # Runs last: free Tk objects here on the main thread. Otherwise the
+        # garbage collector may free them later from another test's server
+        # thread, and Tcl aborts the whole run.
+        self.addCleanup(self._release_tk)
         namespace = runpy.run_path("DubForge.pyw", run_name="ui_test")
         self.App = namespace["App"]
         globals_ = self.App.__init__.__globals__
@@ -42,6 +47,10 @@ class CaptionEditorTests(unittest.TestCase):
         self.app.refresh_list()
         self.app.transcript = tr.Transcript("fr", (tr.Segment(0, 2, "Bonjour monde", (
             tr.Word(.1, .9, " Bonjour"), tr.Word(1.1, 1.9, " monde"))),))
+
+    def _release_tk(self):
+        self.app = self.App = None
+        gc.collect()
 
     def test_generated_caption_split_and_manual_edit(self):
         self.app._remap_captions()
