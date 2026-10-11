@@ -91,6 +91,7 @@ T = {
     "add_folder": ("Ordner hinzufügen", "Add folder"),
     "mic":        ("Mikrofon", "Microphone"),
     "mic_test":   ("Testen", "Test"),
+    "mic_default": ("Windows-Standard (%s)", "Windows default (%s)"),
     "mic_run":    ("Sprich jetzt ...", "Speak now ..."),
     "mic_ok":     ("Pegel %.0f dB - passt", "Level %.0f dB - good"),
     "mic_low":    ("Pegel %.0f dB - zu leise", "Level %.0f dB - too quiet"),
@@ -430,6 +431,9 @@ class Game(tk.Tk):
         super().__init__()
         appwin.set_icon(self, "DubStage")
         self.cfg = load_cfg()
+        # "mic" wurde frueher bei jedem Start ungefragt gespeichert (meist
+        # einfach das erste Geraet). Ab jetzt zaehlt nur "mic_choice".
+        self.cfg.pop("mic", None)
         set_lang(self.cfg.get("lang", "de"))
         self.title(t("title"))
         # Nicht groesser oeffnen als der Bildschirm hergibt - sonst liegt
@@ -760,17 +764,23 @@ class Game(tk.Tk):
                        font=("Segoe UI Semibold", 11))
         if self.mic.available:
             devs = self.mic.devices()
-            names = ["%d  %s" % (i, n) for i, n in devs]
+            self.mic_default = t("mic_default",
+                                 self.mic.default_name() or "?")
+            names = [self.mic_default] + ["%d  %s" % (i, n) for i, n in devs]
             # Beim Neuzeichnen (Fenstergroesse, Vorschaubilder) die gerade
-            # gewaehlte Quelle behalten, nicht auf die gespeicherte springen.
+            # gewaehlte Quelle behalten. Sonst die zuletzt bewusst gewaehlte -
+            # nach Namen, die Nummern koennen sich zwischen Starts aendern.
             old = getattr(self, "mic_var", None)
-            keep = old.get() if old is not None else self.cfg.get("mic")
-            self.mic_var = tk.StringVar(
-                value=keep if keep in names
-                else (names[0] if names else ""))
+            keep = old.get() if old is not None else None
+            if keep not in names:
+                chosen = self.cfg.get("mic_choice") or ""
+                keep = next((n for n in names[1:]
+                             if n.split(None, 1)[-1] == chosen), None)
+            self.mic_var = tk.StringVar(value=keep or self.mic_default)
             box = ttk.Combobox(self, textvariable=self.mic_var, width=44,
                                state="readonly", values=names,
                                style="Mic.TCombobox")
+            box.bind("<<ComboboxSelected>>", self._mic_chosen)
             self._embedded.append(box)
             cv.create_window(200, my + 33, window=box, anchor="w")
             self._btn(w - 250, my + 17, 100, 32, t("mic_test"),
@@ -1051,10 +1061,17 @@ class Game(tk.Tk):
             self.cv.itemconfigure(self.mic_msg, text=t("mic_ok", lvl),
                                   fill=TEAL)
             self.mic.play(ds.normalize(data, 0.9))
-        self.cfg["mic"] = self.mic_var.get()
+
+    def _mic_chosen(self, _e=None):
+        """Nur eine bewusste Auswahl wird gemerkt; Standard = leer."""
+        val = self.mic_var.get()
+        self.cfg["mic_choice"] = ("" if val == getattr(self, "mic_default",
+                                                       None)
+                                  else val.split(None, 1)[-1])
         save_cfg(self.cfg)
 
     def _mic_device(self):
+        """None = Standard-Mikrofon von Windows."""
         try:
             return int(self.mic_var.get().split()[0])
         except Exception:
@@ -1073,8 +1090,6 @@ class Game(tk.Tk):
             messagebox.showerror(t("err"), t("no_pil"))
             return
         self.pack = self.packs[self.sel_pack]
-        self.cfg["mic"] = self.mic_var.get()
-        save_cfg(self.cfg)
         self.cv.itemconfigure(self.status_item, text=t("loading"), fill=GOLD)
         for b in self.buttons:
             b.set_enabled(False)
@@ -2072,10 +2087,6 @@ class Game(tk.Tk):
         self._loading = True
         self.update_idletasks()
 
-    def _remember_mic(self):
-        if getattr(self, "mic_var", None) is not None:
-            self.cfg["mic"] = self.mic_var.get()
-
     # ---------------------------------------------------------- Hosten
     def host_game(self):
         if not self.packs or not self.mic.available or not HAVE_PIL:
@@ -2101,7 +2112,6 @@ class Game(tk.Tk):
         self.cfg.update(net_name=name, net_port=port)
         if have_cf:
             self.cfg["net_tunnel"] = bool(res["tunnel"])
-        self._remember_mic()
         save_cfg(self.cfg)
         pack = self.packs[self.sel_pack]
         want_tunnel = have_cf and res["tunnel"]
@@ -2165,7 +2175,6 @@ class Game(tk.Tk):
             return
         name = res["name"].strip() or "Player"
         self.cfg.update(net_addr=addr, net_name=name)
-        self._remember_mic()
         save_cfg(self.cfg)
         self._menu_busy(t("net_connecting"))
         got = {}

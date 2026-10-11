@@ -543,8 +543,20 @@ class Mic(object):
                 out.append((i, d.get("name", "?")))
         return out
 
+    def default_name(self):
+        """Name des Standard-Mikrofons von Windows, sonst ''."""
+        if not self.sd:
+            return ""
+        try:
+            return self.sd.query_devices(kind="input").get("name", "")
+        except Exception:
+            return ""
+
     def start(self, playback=None, device=None):
-        """playback: Float-Array, das waehrend der Aufnahme laufen soll."""
+        """
+        playback: Float-Array, das waehrend der Aufnahme laufen soll.
+        device None: das Standard-Mikrofon von Windows.
+        """
         if not self.sd:
             raise RuntimeError("sounddevice fehlt / missing")
         self._chunks = []
