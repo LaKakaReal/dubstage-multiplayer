@@ -88,7 +88,14 @@ T = {
     "with_back":  ("mit Backing", "with backing"),
     "no_back":    ("ohne Backing", "no backing"),
     "rescan":     ("Neu suchen", "Rescan"),
-    "add_folder": ("Ordner hinzufügen", "Add folder"),
+    "add_folder": ("Hinzufügen …", "Add …"),
+    "add_dir":    ("Ordner mit Packs …", "Folder with packs …"),
+    "add_archive": ("Zip oder RAR …", "Zip or RAR …"),
+    "unpacking":  ("Entpacke %d Archiv(e) …", "Unpacking %d archive(s) …"),
+    "unpack_fail": ("Konnte nicht entpackt werden:\n\n%s",
+                    "Could not be unpacked:\n\n%s"),
+    "no_pack_in": ("Kein Dub-Pack darin gefunden:\n\n%s",
+                   "No dub pack found inside:\n\n%s"),
     "mic":        ("Mikrofon", "Microphone"),
     "mic_test":   ("Testen", "Test"),
     "mic_default": ("Windows-Standard (%s)", "Windows default (%s)"),
@@ -522,6 +529,7 @@ class Game(tk.Tk):
         self._thumb_redraw = False
         self._logo_img = None
         self._loading = False
+        self._unpacking = 0           # Archive, die gerade entpackt werden
         self.net = None               # NetSession im Mehrspieler
         self.lobby_scroll = 0
         self.lobby_by_line = False
@@ -795,8 +803,11 @@ class Game(tk.Tk):
         self._stop_audio()
         if not self._scanned:
             self._scanned = True
+            pending = []
             self.packs = ds.find_packs(
-                extra_dirs=self.cfg.get("extra_dirs") or [])
+                extra_dirs=self.cfg.get("extra_dirs") or [], pending=pending)
+            if pending:
+                self.after(10, lambda: self._unpack_archives(pending))
             self.sel_pack = min(self.sel_pack, max(0, len(self.packs) - 1))
         self._clear_canvas()
         self._backdrop()
@@ -930,7 +941,8 @@ class Game(tk.Tk):
         # ---- untere Knopfleiste
         by = h - 78
         self._btn(70, by, 140, 44, t("rescan"), self.scan_packs, "ghost")
-        self._btn(222, by, 176, 44, t("add_folder"), self.add_folder, "ghost")
+        self.b_add = self._btn(222, by, 176, 44, t("add_folder"),
+                               self.add_folder, "ghost")
         start = self._btn(w - 250, by, 180, 44, t("start"), self.start_round,
                           "go", font=("Segoe UI Semibold", 13))
         playable = self.mic.available and HAVE_PIL
@@ -943,6 +955,9 @@ class Game(tk.Tk):
         join.set_enabled(playable)
         self.status_item = cv.create_text(w / 2, by - 14, text="", fill=DIM,
                                           font=("Segoe UI", 10))
+        if self._unpacking:
+            cv.itemconfigure(self.status_item, fill=GOLD,
+                             text=t("unpacking", self._unpacking))
 
     # ==================================================================
     #  UPDATE
@@ -1155,16 +1170,86 @@ class Game(tk.Tk):
         return photo
 
     def add_folder(self):
-        d = filedialog.askdirectory(title=t("add_folder"))
-        if not d:
-            return
+        """Kleines Menue: Ordner mit Packs oder ein Zip/RAR."""
+        m = tk.Menu(self, tearoff=0, bg=PANEL_HI, fg=TXT, bd=0,
+                    activebackground=ACC, activeforeground="#ffffff",
+                    font=("Segoe UI", 10))
+        m.add_command(label=t("add_dir"), command=self._add_dir)
+        m.add_command(label=t("add_archive"), command=self._add_archive)
+        x0, y0, _x1, _y1 = self.b_add.box
+        try:
+            m.tk_popup(self.cv.winfo_rootx() + int(x0),
+                       self.cv.winfo_rooty() + int(y0) - 58)
+        finally:
+            m.grab_release()
+
+    def _add_source(self, path):
         extra = self.cfg.get("extra_dirs") or []
-        if d not in extra:
-            extra.append(d)
+        if path not in extra:
+            extra.append(path)
         self.cfg["extra_dirs"] = extra
         save_cfg(self.cfg)
         self._scanned = False
         self.show_menu()
+
+    def _add_dir(self):
+        d = filedialog.askdirectory(title=t("add_dir"))
+        if d:
+            self._add_source(d)
+
+    def _add_archive(self):
+        f = filedialog.askopenfilename(
+            title=t("add_archive"),
+            filetypes=[("Zip / RAR", "*.zip *.rar"), ("*", "*.*")])
+        if f:
+            self._add_source(f)
+
+    def _unpack_archives(self, paths):
+        """Zips/RARs im Hintergrund pruefen und entpacken, dann neu suchen."""
+        if self._unpacking:
+            return
+        self._unpacking = len(paths)
+        if self.screen == "menu":
+            self.cv.itemconfigure(self.status_item, fill=GOLD,
+                                  text=t("unpacking", len(paths)))
+        result = {"new": 0, "failed": [], "empty": []}
+
+        def work():
+            for p in paths:
+                target = ds.archive_target(p)
+                if not ds.archive_has_pack(p):
+                    ds.NOT_PACKS.add(target)
+                    result["empty"].append(p)
+                    continue
+                try:
+                    ds.extract_archive(p)
+                    result["new"] += 1
+                except Exception as ex:
+                    traceback.print_exc()
+                    ds.NOT_PACKS.add(target)     # nicht bei jedem Menue erneut
+                    result["failed"].append("%s: %s" % (
+                        os.path.basename(p), str(ex).strip()[:200]))
+
+        def done():
+            self._unpacking = 0
+            chosen = [os.path.normpath(x)
+                      for x in self.cfg.get("extra_dirs") or []]
+            # Nur selbst gewaehlte Archive ohne Pack melden - fremde Zips in
+            # einem Ordner (Downloads) gehen uns nichts an.
+            empty = [os.path.basename(p) for p in result["empty"]
+                     if os.path.normpath(p) in chosen]
+            if self.screen == "menu":
+                self._scanned = not result["new"]
+                self.show_menu()
+            elif result["new"]:
+                self._scanned = False
+            if result["failed"]:
+                messagebox.showwarning(t("title"), t(
+                    "unpack_fail", "\n".join(result["failed"])))
+            if empty:
+                messagebox.showinfo(t("title"),
+                                    t("no_pack_in", "\n".join(empty)))
+        self._run_bg(work, done)
 
     def test_mic(self):
         if not self.mic.available or self._busy:
