@@ -58,7 +58,8 @@ class LoadPackTests(unittest.TestCase):
     def setUp(self):
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
-        self.folder = os.path.join(root, "pennywise_vs_groot")
+        self.folder = os.path.join(root, "Compressed", "pennywise_vs_groot",
+                                   "Pennywise vs Groot")
         os.makedirs(self.folder)
         tone = 0.2 * np.sin(np.linspace(0, 300, ds.SR // 2))
         for name, ts, who, cap in (
@@ -93,6 +94,16 @@ class LoadPackTests(unittest.TestCase):
         self.assertEqual([l.file for l in groot],
                          ["301_Groot.wav", "301_Groot.wav#2"])
         self.assertEqual(groot[0].path, groot[1].path)
+
+    def test_find_packs_in_zip_wrapper_and_pack_itself(self):
+        # Compressed/<zip name>/<pack>: der Pack liegt zwei Ebenen tief
+        downloads = os.path.dirname(os.path.dirname(self.folder))
+        wrapper = os.path.dirname(self.folder)
+        for root in (downloads, wrapper, self.folder):
+            self.assertEqual([p.name for p in ds.find_packs([root])],
+                             ["Pennywise vs Groot"], root)
+        both = ds.find_packs([downloads, self.folder])
+        self.assertEqual(len(both), 1)
 
     def test_multiplayer_accepts_cv_lines(self):
         pack = ds.load_pack(self.folder)
