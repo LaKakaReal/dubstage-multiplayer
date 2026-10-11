@@ -214,16 +214,32 @@ def find_packs(extra_dirs=None):
 
     packs = []
     seen = set()
+
+    def visit(folder, depth):
+        """Pack selbst, sonst eine Ebene tiefer - entpackte Zips liegen oft
+        in einem Huellordner (pennywise_vs_groot/Pennywise vs Groot)."""
+        key = os.path.normpath(folder).lower()
+        if key in seen:
+            return
+        seen.add(key)
+        p = load_pack(folder)
+        if p:
+            packs.append(p)
+            return
+        if depth <= 0:
+            return
+        try:
+            entries = sorted(os.listdir(folder))
+        except OSError:
+            return
+        for entry in entries:
+            sub = os.path.join(folder, entry)
+            # _net & Co. sind interne Ordner, kein Inhalt fuers Menue
+            if not entry.startswith(("_", ".")) and os.path.isdir(sub):
+                visit(sub, depth - 1)
+
     for root in roots:
-        for entry in sorted(os.listdir(root)):
-            folder = os.path.join(root, entry)
-            key = os.path.normpath(folder).lower()
-            if key in seen or not os.path.isdir(folder):
-                continue
-            seen.add(key)
-            p = load_pack(folder)
-            if p:
-                packs.append(p)
+        visit(root, 2)
     return packs
 
 
