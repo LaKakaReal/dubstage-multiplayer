@@ -683,10 +683,10 @@ function renderStage() {
   $("recLabel").textContent = has ? t("recordAgain") : t("record");
   $("bTake").disabled = busy || !has;
   $("takeLabel").textContent = own ? t("myTake") : t("playTake");
-  $("bPrev").disabled = busy || S.i === 0;
+  $("bPrev").disabled = busy || ownStep(-1) < 0;
   $("bSkip").disabled = busy || !has || !own;
   $("bNext").disabled = busy;
-  $("nextLabel").textContent = S.i >= n - 1 ? t("ready") : t("next") + " ›";
+  $("nextLabel").textContent = ownStep(1) < 0 ? t("ready") : t("next") + " ›";
   // Leiste
   const chips = $("chips");
   if (chips.children.length !== n) {
@@ -731,6 +731,18 @@ function goto(i) {
   if (S.phase !== "idle") return;
   stopPlay(); S.i = Math.max(0, Math.min(S.lines.length - 1, i)); renderStage();
 }
+
+// Naechste/vorige eigene Zeile, sonst -1 - fremde nur ueber die Leiste
+function ownStep(step) {
+  for (let i = S.i + step; i >= 0 && i < S.lines.length; i += step) if (mine(S.lines[i])) return i;
+  return -1;
+}
+function nextLine() {
+  if (S.phase !== "idle") return;
+  const i = ownStep(1);
+  if (i < 0) ready(); else goto(i);
+}
+function prevLine() { const i = ownStep(-1); if (i >= 0) goto(i); }
 
 function setPhase(p) { S.phase = p; renderStage(); }
 
@@ -960,8 +972,8 @@ $("bOrig").onclick = playOriginal;
 $("bRec").onclick = record;
 $("bTake").onclick = playTake;
 $("bSkip").onclick = clearTake;
-$("bPrev").onclick = () => goto(S.i - 1);
-$("bNext").onclick = () => { if (S.phase !== "idle") return; if (S.i >= S.lines.length - 1) ready(); else goto(S.i + 1); };
+$("bPrev").onclick = prevLine;
+$("bNext").onclick = nextLine;
 $("bReplay").onclick = replayMine;
 document.querySelectorAll(".micsel").forEach(s => s.onchange = chooseMic);
 if (navigator.mediaDevices) navigator.mediaDevices.addEventListener("devicechange", () => { if (S.stream) listMics(); });
@@ -971,8 +983,8 @@ document.addEventListener("keydown", e => {
   if (e.target.tagName === "INPUT") return;
   if (S.screen === "stage") {
     if (e.code === "Space") { e.preventDefault(); record(); }
-    else if (e.key === "ArrowLeft") goto(S.i - 1);
-    else if (e.key === "ArrowRight") goto(S.i + 1);
+    else if (e.key === "ArrowLeft") prevLine();
+    else if (e.key === "ArrowRight") { const i = ownStep(1); if (i >= 0) goto(i); }
   } else if (S.screen === "finale" && e.code === "Space") { e.preventDefault(); toggleFinale(); }
 });
 

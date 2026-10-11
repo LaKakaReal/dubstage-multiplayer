@@ -1270,8 +1270,13 @@ class Game(tk.Tk):
         n = len(self.pack.lines)
         busy = self.phase != "idle"
         has_take = line is not None and line.take is not None and len(line.take)
-        last = self.line_i >= n - 1
         mine = self._net_mine(line)
+        if self.net:
+            last = self._own_step(1) is None
+            has_prev = self._own_step(-1) is not None
+        else:
+            last = self.line_i >= n - 1
+            has_prev = self.line_i > 0
 
         # --- Knopfzustaende zuerst: die duerfen nie von der Anzeige abhaengen.
         # Aufnehmen ist auf jeder Zeile moeglich, auch auf der letzten.
@@ -1281,7 +1286,7 @@ class Game(tk.Tk):
         self.b_take.set_enabled(not busy and bool(has_take))
         self.b_take.set_text("▶  " + (t("play_take") if mine
                                       else t("their_take")))
-        self.b_prev.set_enabled(not busy and self.line_i > 0)
+        self.b_prev.set_enabled(not busy and has_prev)
         self.b_skip.set_enabled(not busy and bool(has_take) and mine)
         self.b_next.set_enabled(not busy)
         if last and self.net:
@@ -1813,12 +1818,35 @@ class Game(tk.Tk):
         self._stop_audio()
         self.sync()
 
+    def _own_step(self, step):
+        """Naechste/vorige eigene Zeile ab der aktuellen, sonst None."""
+        i = self.line_i + step
+        while 0 <= i < len(self.pack.lines):
+            if self._net_mine(self.pack.lines[i]):
+                return i
+            i += step
+        return None
+
     def prev_line(self):
-        if self.phase == "idle" and self.line_i > 0:
+        if self.phase != "idle":
+            return
+        if self.net:
+            # Im Mehrspieler nur die eigenen Zeilen - fremde per Leiste
+            i = self._own_step(-1)
+            if i is not None:
+                self.goto_line(i)
+        elif self.line_i > 0:
             self.goto_line(self.line_i - 1)
 
     def next_line(self):
         if self.phase != "idle":
+            return
+        if self.net:
+            i = self._own_step(1)
+            if i is None:
+                self.net_ready()
+            else:
+                self.goto_line(i)
             return
         if self.line_i >= len(self.pack.lines) - 1:
             if self.net:
