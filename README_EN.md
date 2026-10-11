@@ -139,6 +139,8 @@ Each curve is normalised to its own loudness, so what you compare is rhythm, not
 
 The menu has **Test**: records two seconds, shows the level, plays it back. If nothing arrives, pick a different device in the dropdown next to it.
 
+By default DubStage uses the **Windows default** microphone (first entry, with the device's name). Only a microphone you pick yourself is remembered. Browser players pick theirs in the lobby or under the record buttons.
+
 ## Frame rate
 
 The default is **25 frames per second** at 960 px wide. The video is split into single frames once and cached under `%TEMP%\dubstage_cache`, roughly 37 MB per minute of video.
@@ -200,8 +202,16 @@ roles are fixed, and lines nobody took keep the original voice.
 shows every line in its owner's colour, bright once it is recorded. Other
 players' lines can be listened to as soon as their take arrives. The hint at the
 bottom says whose lines are still missing. The host can call everyone back to
-the **Lobby** to reassign lines; takes are kept. **Done** opens the finale,
-which every player renders on their own PC and can save as a video.
+the **Lobby** to reassign lines; takes are kept.
+
+**Ready and the finale:** on the last line the button says **Ready ✓**. It
+takes you to a waiting room that shows how far everyone is (lines recorded out
+of their own lines, ready or still recording). **Replay my lines** plays your
+takes over the video, and **Back to my lines** un-readies you so you can
+re-record anything. Once everyone is ready, every client fetches all takes and
+opens the finale with the whole scene. Takes are locked from then on, and
+everyone can play the scene or save it as a video. The host has **Finish now**
+in case someone is away.
 
 If someone leaves in the lobby, their roles become free again. During the game
 their lines go to the host. If the host closes the

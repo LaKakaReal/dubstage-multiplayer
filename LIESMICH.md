@@ -138,6 +138,8 @@ Beide Kurven werden auf ihre eigene Lautstärke normiert, verglichen wird also R
 
 Im Menü gibt es **Testen**: zwei Sekunden aufnehmen, Pegel ablesen, Wiedergabe. Falls nichts ankommt, im Auswahlfeld daneben ein anderes Gerät nehmen.
 
+Standardmäßig nimmt DubStage das **Windows-Standard**-Mikrofon (erster Eintrag, mit dem Namen des Geräts). Gemerkt wird nur ein Mikrofon, das du selbst auswählst. Browser-Spieler wählen ihres in der Lobby oder unter den Aufnahmeknöpfen.
+
 ## Bildrate
 
 Standard sind **25 Bilder pro Sekunde** bei 960 px Breite. Das Video wird dafür einmalig in Einzelbilder zerlegt und unter `%TEMP%\dubstage_cache` abgelegt, rund 37 MB pro Minute Video.
@@ -200,8 +202,16 @@ Zeilen, die niemand genommen hat, behalten die Originalstimme.
 dem Untertitel zeigt jede Zeile in der Farbe ihres Sprechers, hell, sobald sie
 aufgenommen ist. Fremde Zeilen kannst du anhören, sobald die Aufnahme da ist.
 Unten steht, wessen Zeilen noch fehlen. Der Host kann alle zurück in die
-**Lobby** holen und neu verteilen; Aufnahmen bleiben erhalten. **Fertig**
-öffnet das Finale, das jeder bei sich rendert und als Video speichern kann.
+**Lobby** holen und neu verteilen; Aufnahmen bleiben erhalten.
+
+**Bereit und das Finale:** Auf der letzten Zeile heißt der Knopf **Bereit ✓**.
+Er führt in einen Warteraum, der zeigt, wie weit alle sind (aufgenommene von
+den eigenen Zeilen, bereit oder nimmt noch auf). **Meine Zeilen abspielen**
+spielt deine Aufnahmen zum Video, **Zurück zu meinen Zeilen** nimmt das Bereit
+zurück, damit du alles nochmal aufnehmen kannst. Sind alle bereit, holt jeder
+alle Aufnahmen und das Finale mit der ganzen Szene öffnet sich. Ab dann sind
+die Aufnahmen fest, und jeder kann die Szene abspielen oder als Video
+speichern. Der Host hat **Jetzt fertigstellen**, falls jemand weg ist.
 
 Geht jemand in der Lobby, werden seine Rollen wieder frei; im laufenden Spiel
 übernimmt der Host. Beendet der Host, ist das

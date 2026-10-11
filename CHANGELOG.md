@@ -19,6 +19,10 @@ versioning follows [Semantic Versioning](https://semver.org/).
   Roles start free: every player picks or gives back roles in the lobby
   (app or browser), the host can override, and *Auto split* only fills
   the roles nobody picked.
+  The finale waits for everyone: the last line's button is *Ready ✓*, a
+  waiting room shows everyone's progress, lets you replay your own lines or
+  go back and re-record, and once all are ready the full scene opens for
+  everyone. The host can finish early.
 - **Choicer Voicer packs play in DubStage.** Start times, characters and
   captions come from each clip's `.txt` (multi-line captions included), the
   title from `_pack_info.ini`; MP3 clips, `_backing_track.mp3` and
@@ -32,6 +36,11 @@ versioning follows [Semantic Versioning](https://semver.org/).
 - **The setup installs `cloudflared`** for multiplayer tunnels: an optional
   component of the installer (ticked in *Standard* and *Everything*) and an
   optional step in `Setup.bat`. It lands in `tools\` next to ffmpeg.
+
+### Changed
+
+- **The microphone defaults to the Windows default** and only remembers one
+  you pick yourself. Browser players can pick their microphone too.
 
 ### Fixed
 
